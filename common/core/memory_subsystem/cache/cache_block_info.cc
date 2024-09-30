@@ -3,6 +3,8 @@
 #include "pr_l2_cache_block_info.h"
 #include "shared_cache_block_info.h"
 #include "log.h"
+#include "simulator.h"     // Added by Kleber Kruger
+#include "epoch_manager.h" // Added by Kleber Kruger
 
 const char* CacheBlockInfo::option_names[] =
 {
@@ -12,28 +14,28 @@ const char* CacheBlockInfo::option_names[] =
 
 const char* CacheBlockInfo::getOptionName(option_t option)
 {
-   static_assert(CacheBlockInfo::NUM_OPTIONS == sizeof(CacheBlockInfo::option_names) / sizeof(char*), "Not enough values in CacheBlockInfo::option_names");
+   static_assert(NUM_OPTIONS == sizeof(option_names) / sizeof(char*), "Not enough values in CacheBlockInfo::option_names");
 
    if (option < NUM_OPTIONS)
       return option_names[option];
-   else
-      return "invalid";
+
+   return "invalid";
 }
 
 
-CacheBlockInfo::CacheBlockInfo(IntPtr tag, CacheState::cstate_t cstate, UInt64 options):
+CacheBlockInfo::CacheBlockInfo(const IntPtr tag, const CacheState::cstate_t cstate, const UInt64 options):
    m_tag(tag),
    m_cstate(cstate),
    m_owner(0),
    m_used(0),
-   m_options(options)
+   m_options(options),
+   m_eid(0)                         // Added by Kleber Kruger
 {}
 
-CacheBlockInfo::~CacheBlockInfo()
-{}
+CacheBlockInfo::~CacheBlockInfo() = default;
 
 CacheBlockInfo*
-CacheBlockInfo::create(CacheBase::cache_t cache_type)
+CacheBlockInfo::create(const CacheBase::cache_t cache_type)
 {
    switch (cache_type)
    {
@@ -48,7 +50,6 @@ CacheBlockInfo::create(CacheBase::cache_t cache_type)
 
       default:
          LOG_PRINT_ERROR("Unrecognized cache type (%u)", cache_type);
-         return NULL;
    }
 }
 
@@ -57,6 +58,7 @@ CacheBlockInfo::invalidate()
 {
    m_tag = ~0;
    m_cstate = CacheState::INVALID;
+   m_eid = 0;                       // Added by Kleber Kruger
 }
 
 void
@@ -67,24 +69,39 @@ CacheBlockInfo::clone(CacheBlockInfo* cache_block_info)
    m_owner = cache_block_info->m_owner;
    m_used = cache_block_info->m_used;
    m_options = cache_block_info->m_options;
+   m_eid = cache_block_info->m_eid; // Added by Kleber Kruger
 }
 
 bool
-CacheBlockInfo::updateUsage(UInt32 offset, UInt32 size)
+CacheBlockInfo::updateUsage(const UInt32 offset, const UInt32 size)
 {
-   UInt64 first = offset >> BitsUsedOffset,
-          last  = (offset + size - 1) >> BitsUsedOffset,
-          first_mask = (1ull << first) - 1,
-          last_mask = (1ull << (last + 1)) - 1,
-          usage_mask = last_mask & ~first_mask;
+   const UInt64 first = offset >> BitsUsedOffset,
+                last  = (offset + size - 1) >> BitsUsedOffset,
+                first_mask = (1ull << first) - 1,
+                last_mask = (1ull << (last + 1)) - 1,
+                usage_mask = last_mask & ~first_mask;
 
    return updateUsage(usage_mask);
 }
 
 bool
-CacheBlockInfo::updateUsage(BitsUsedType used)
+CacheBlockInfo::updateUsage(const BitsUsedType used)
 {
-   bool new_bits_set = used & ~m_used; // Are we setting any bits that were previously unset?
-   m_used |= used;                     // Update usage mask
+   const bool new_bits_set = used & ~m_used; // Are we setting any bits that were previously unset?
+   m_used |= used;                           // Update usage mask
    return new_bits_set;
+}
+
+void // Modified by Kleber Kruger
+CacheBlockInfo::setCState(const CacheState::cstate_t cstate)
+{
+   // Added by Kleber Kruger
+   if (Sim()->getProjectType() == ProjectType::DONUTS && cstate == CacheState::MODIFIED)
+   {
+      const UInt64 eid = EpochManager::getGlobalSystemEID();
+      // TODO: In the cache_cntlr, case the system tries to write to a cache block from a past epoch not committed, commit it!
+      LOG_ASSERT_ERROR(m_cstate != CacheState::MODIFIED || m_eid == eid, "It's not allowed to write to an uncommitted block (%lu -> %lu)", m_eid, eid);
+      m_eid = eid;
+   }
+   m_cstate = cstate;
 }

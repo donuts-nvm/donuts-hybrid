@@ -8,6 +8,7 @@
 #include "hooks_manager.h"
 #include "cache_atd.h"
 #include "shmem_perf.h"
+#include "utils.h"
 
 #include <cstring>
 

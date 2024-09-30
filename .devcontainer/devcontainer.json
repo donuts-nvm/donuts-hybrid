@@ -1,0 +1,9 @@
+// Info https://containers.dev/implementors/json_reference/
+{
+  "name": "ubuntu:20.04-sniper",
+  "dockerFile": "../docker/Dockerfile",
+  "build": {
+    "args": {}
+  },
+  "runArgs": []
+}

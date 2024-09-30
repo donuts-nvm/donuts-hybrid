@@ -4,20 +4,59 @@
 #include "cache_base.h"
 #include "cache_set.h"
 #include "cache_block_info.h"
-#include "utils.h"
-#include "hash_map_set.h"
 #include "cache_perf_model.h"
-#include "shmem_perf_model.h"
-#include "log.h"
 #include "core.h"
 #include "fault_injection.h"
+
+#include <optional>
 
 // Define to enable the set usage histogram
 //#define ENABLE_SET_USAGE_HIST
 
 class Cache : public CacheBase
 {
-   private:
+   public:
+      // constructors/destructors
+      Cache(const String& name,
+            const String& cfgname,
+            core_id_t core_id,
+            UInt32 num_sets,
+            UInt32 associativity,
+            UInt32 cache_block_size,
+            const String& replacement_policy,
+            cache_t cache_type,
+            hash_t hash = HASH_MASK,
+            FaultInjector *fault_injector = nullptr,
+            AddressHomeLookup *ahl = nullptr);
+      ~Cache() override;
+
+      [[nodiscard]] Lock& getSetLock(IntPtr addr) const;
+
+      bool invalidateSingleLine(IntPtr addr) const;
+      CacheBlockInfo* accessSingleLine(IntPtr addr,
+            access_t access_type, Byte* buff, UInt32 bytes, const SubsecondTime& now, bool update_replacement) const;
+      void insertSingleLine(IntPtr addr, Byte* fill_buff,
+            bool* eviction, IntPtr* evict_addr,
+            CacheBlockInfo* evict_block_info, Byte* evict_buff, const SubsecondTime& now, CacheCntlr *cntlr = nullptr) const;
+      [[nodiscard]] CacheBlockInfo* peekSingleLine(IntPtr addr) const;
+
+      [[nodiscard]] CacheBlockInfo* peekBlock(const UInt32 set_index, const UInt32 way) const { return m_sets[set_index]->peekBlock(way); }
+
+      // Update Cache Counters
+      void updateCounters(bool cache_hit);
+      void updateHits(Core::mem_op_t mem_op_type, UInt64 hits);
+
+      [[nodiscard]] ReplacementPolicy getReplacementPolicy() const { return m_replacement_policy; } // Added by Kleber Kruger
+      [[nodiscard]] float getCapacityUsed() const;                                                  // Added by Kleber Kruger
+      [[nodiscard]] float getSetCapacityUsed(UInt32 index) const;                                   // Added by Kleber Kruger
+
+      [[nodiscard]] static float getCacheThreshold(const String& cfgname);                          // Added by Kleber Kruger
+      [[nodiscard]] static bool isDonutsAndLLC(const String& cfgname);                              // Added by Kleber Kruger
+
+      void enable() { m_enabled = true; }
+      void disable() { m_enabled = false; }
+
+protected:
       bool m_enabled;
 
       // Cache counters
@@ -31,43 +70,12 @@ class Cache : public CacheBase
 
       FaultInjector *m_fault_injector;
 
-      #ifdef ENABLE_SET_USAGE_HIST
+      ReplacementPolicy m_replacement_policy; // Added by Kleber Kruger
+      float m_cache_threshold;                // Added by Kleber Kruger
+
+#ifdef ENABLE_SET_USAGE_HIST
       UInt64* m_set_usage_hist;
-      #endif
-
-   public:
-
-      // constructors/destructors
-      Cache(String name,
-            String cfgname,
-            core_id_t core_id,
-            UInt32 num_sets,
-            UInt32 associativity, UInt32 cache_block_size,
-            String replacement_policy,
-            cache_t cache_type,
-            hash_t hash = CacheBase::HASH_MASK,
-            FaultInjector *fault_injector = NULL,
-            AddressHomeLookup *ahl = NULL);
-      ~Cache();
-
-      Lock& getSetLock(IntPtr addr);
-
-      bool invalidateSingleLine(IntPtr addr);
-      CacheBlockInfo* accessSingleLine(IntPtr addr,
-            access_t access_type, Byte* buff, UInt32 bytes, SubsecondTime now, bool update_replacement);
-      void insertSingleLine(IntPtr addr, Byte* fill_buff,
-            bool* eviction, IntPtr* evict_addr,
-            CacheBlockInfo* evict_block_info, Byte* evict_buff, SubsecondTime now, CacheCntlr *cntlr = NULL);
-      CacheBlockInfo* peekSingleLine(IntPtr addr);
-
-      CacheBlockInfo* peekBlock(UInt32 set_index, UInt32 way) const { return m_sets[set_index]->peekBlock(way); }
-
-      // Update Cache Counters
-      void updateCounters(bool cache_hit);
-      void updateHits(Core::mem_op_t mem_op_type, UInt64 hits);
-
-      void enable() { m_enabled = true; }
-      void disable() { m_enabled = false; }
+#endif
 };
 
 template <class T>

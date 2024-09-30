@@ -3,6 +3,7 @@
 
 #include <string>
 #include <cassert>
+#include <cstdint> // Added by Kleber Kruger to fix errors using gcc/g++-13
 
 namespace dl
 {

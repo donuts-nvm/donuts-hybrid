@@ -24,4 +24,8 @@ run-root:
 run:
 	docker run --rm -it -v "${HOME}:${HOME}" --user $(shell id -u):$(shell id -g) -w "${PWD}" $(DOCKER_IMAGE)
 
-.PHONY: all build-all run-root run
+# Added by Kleber Kruger running docker container in the LSC
+run-lsc:
+	UID=$(shell id -u) GID=$(shell id -g) docker-compose build && UID=$(shell id -u) GID=$(shell id -g) docker-compose up -d
+
+.PHONY: all build-all run-root run-lsc run

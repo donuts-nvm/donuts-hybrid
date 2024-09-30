@@ -28,71 +28,114 @@
 #include "memory_tracker.h"
 #include "circular_log.h"
 
-#include <sstream>
+#include <ranges>
 
-Simulator *Simulator::m_singleton;
-config::Config *Simulator::m_config_file;
+Simulator* Simulator::m_singleton;
+config::Config* Simulator::m_config_file;
 bool Simulator::m_config_file_allowed = true;
 Config::SimulationMode Simulator::m_mode;
-dl::Decoder *Simulator::m_decoder;
+dl::Decoder* Simulator::m_decoder;
+
+String Project::toName(Project::Type project_type)
+{
+   switch (project_type)
+   {
+      case ProjectType::BASELINE:
+         return "Baseline";
+      case ProjectType::DONUTS:
+         return "dOnuts";
+      default:
+         return "Unknown";
+   }
+}
+
+Project::Type Project::toType(const String& project_name)
+{
+   String name = project_name;
+   std::ranges::transform(name.begin(), name.end(), name.begin(), ::tolower);
+
+   if (name == "baseline" || name == "default")
+      return ProjectType::BASELINE;
+   if (name == "donuts")
+      return ProjectType::DONUTS;
+
+   return ProjectType::UNKNOWN;
+}
+
+/**
+ * Loads the project type
+ * Added by Kleber Kruger
+ *
+ * @return ProjectType
+ */
+ProjectType Simulator::loadProjectType()
+{
+   const String key = "general/project_type";
+   String project   = Sim()->getCfg()->hasKey(key) ? Sim()->getCfg()->getString(key) : "baseline";
+
+   auto project_type = Project::toType(project);
+   LOG_ASSERT_ERROR(project_type != ProjectType::UNKNOWN, "Unknown project %s", project.c_str())
+   return project_type;
+}
 
 void Simulator::allocate()
 {
-   assert(m_singleton == NULL);
+   assert(m_singleton == nullptr);
    m_singleton = new Simulator();
 }
 
-void Simulator::setConfig(config::Config *cfg, Config::SimulationMode mode)
+void Simulator::setConfig(config::Config* cfg, Config::SimulationMode mode)
 {
    m_config_file = cfg;
-   m_mode = mode;
+   m_mode        = mode;
 }
 
-void Simulator::createDecoder()
+void
+Simulator::createDecoder()
 {
    // Set up the decoder object if it does not exist yet
-   if (! m_decoder)
+   if (!m_decoder)
    {
       // Get architecture
       dl::dl_arch dla;
       String architecture = Sim()->getCfg()->getString("general/arch");
       if (architecture == "intel")
-        dla = dl::DL_ARCH_INTEL;
+         dla = dl::DL_ARCH_INTEL;
       else if (architecture == "riscv")
-        dla = dl::DL_ARCH_RISCV;
+         dla = dl::DL_ARCH_RISCV;
       else
-        LOG_PRINT_ERROR("Unknown architecture %s, should be intel or arm.", architecture.c_str());
+         LOG_PRINT_ERROR("Unknown architecture %s, should be intel or arm.", architecture.c_str());
       // Get mode
       dl::dl_mode dlm;
       String mode = Sim()->getCfg()->getString("general/mode");
       if (mode == "64")
-        dlm = dl::DL_MODE_64;
+         dlm = dl::DL_MODE_64;
       else if (mode == "32")
-        dlm = dl::DL_MODE_32;
+         dlm = dl::DL_MODE_32;
       else
-        LOG_PRINT_ERROR("Unknown mode %s, should be 32 or 64 (bits).", mode.c_str());
-      // Get syntax 
+         LOG_PRINT_ERROR("Unknown mode %s, should be 32 or 64 (bits).", mode.c_str());
+      // Get syntax
       dl::dl_syntax dls;
       String syntax = Sim()->getCfg()->getString("general/syntax");
       if (dla == dl::DL_ARCH_RISCV)
-        dls = dl::DL_SYNTAX_DEFAULT;
+         dls = dl::DL_SYNTAX_DEFAULT;
       else if (syntax == "intel")
-        dls = dl::DL_SYNTAX_INTEL;
+         dls = dl::DL_SYNTAX_INTEL;
       else if (syntax == "att")
-        dls = dl::DL_SYNTAX_ATT;
+         dls = dl::DL_SYNTAX_ATT;
       else if (syntax == "xed")
-        dls = dl::DL_SYNTAX_XED;
+         dls = dl::DL_SYNTAX_XED;
       else
-        LOG_PRINT_ERROR("Unknown assembly syntax %s, should be intel, att or xed.", syntax.c_str());
+         LOG_PRINT_ERROR("Unknown assembly syntax %s, should be intel, att or xed.", syntax.c_str());
 
       m_factory = new dl::DecoderFactory;
-      m_decoder = m_factory->CreateDecoder(dla, dlm, dls);  // create decoder for [arch, mode, syntax]
+      m_decoder = m_factory->CreateDecoder(dla, dlm, dls);// create decoder for [arch, mode, syntax]
    }
 }
 
-dl::Decoder * Simulator::getDecoder()
+dl::Decoder* Simulator::getDecoder()
 {
-  return m_decoder;
+   return m_decoder;
 }
 
 void Simulator::release()
@@ -100,7 +143,7 @@ void Simulator::release()
    m_singleton->m_running = false;
    // Fxsupport::fini();
    delete m_singleton;
-   m_singleton = NULL;
+   m_singleton = nullptr;
 }
 
 Simulator::Simulator()
@@ -108,53 +151,55 @@ Simulator::Simulator()
    , m_log(m_config)
    , m_tags_manager(new TagsManager(m_config_file))
    , m_stats_manager(new StatsManager)
-   , m_transport(NULL)
-   , m_core_manager(NULL)
-   , m_thread_manager(NULL)
-   , m_thread_stats_manager(NULL)
-   , m_sim_thread_manager(NULL)
-   , m_clock_skew_minimization_manager(NULL)
-   , m_fastforward_performance_manager(NULL)
-   , m_trace_manager(NULL)
-   , m_dvfs_manager(NULL)
-   , m_hooks_manager(NULL)
-   , m_sampling_manager(NULL)
-   , m_faultinjection_manager(NULL)
-   , m_rtn_tracer(NULL)
-   , m_memory_tracker(NULL)
+   , m_transport(nullptr)
+   , m_core_manager(nullptr)
+   , m_thread_manager(nullptr)
+   , m_thread_stats_manager(nullptr)
+   , m_sim_thread_manager(nullptr)
+   , m_clock_skew_minimization_manager(nullptr)
+   , m_fastforward_performance_manager(nullptr)
+   , m_trace_manager(nullptr)
+   , m_dvfs_manager(nullptr)
+   , m_hooks_manager(nullptr)
+   , m_sampling_manager(nullptr)
+   , m_faultinjection_manager(nullptr)
+   , m_rtn_tracer(nullptr)
+   , m_memory_tracker(nullptr)
+   , m_project_type(loadProjectType()) // Added by Kleber Kruger
    , m_running(false)
    , m_inst_mode_output(true)
-{
-}
+{}
 
 void Simulator::start()
 {
    LOG_PRINT("In Simulator ctor.");
-   
+
    // create a new Decoder object for this Simulator
    createDecoder();
-   
-   m_hooks_manager = new HooksManager();
-   m_syscall_server = new SyscallServer();
-   m_sync_server = new SyncServer();
-   m_magic_server = new MagicServer();
-   m_transport = Transport::create();
-   m_dvfs_manager = new DvfsManager();
-   m_faultinjection_manager = FaultinjectionManager::create();
-   m_thread_stats_manager = new ThreadStatsManager();
+
+   m_hooks_manager                   = new HooksManager();
+   m_syscall_server                  = new SyscallServer();
+   m_sync_server                     = new SyncServer();
+   m_magic_server                    = new MagicServer();
+   m_transport                       = Transport::create();
+   m_dvfs_manager                    = new DvfsManager();
+   m_faultinjection_manager          = FaultinjectionManager::create();
+   m_thread_stats_manager            = new ThreadStatsManager();
    m_clock_skew_minimization_manager = ClockSkewMinimizationManager::create();
-   m_clock_skew_minimization_server = ClockSkewMinimizationServer::create();
-   m_core_manager = new CoreManager();
-   m_sim_thread_manager = new SimThreadManager();
-   m_sampling_manager = new SamplingManager();
+   m_clock_skew_minimization_server  = ClockSkewMinimizationServer::create();
+   m_epoch_manager                   = (m_project_type != ProjectType::BASELINE) ? // Added by Kleber Kruger
+                                           std::optional<EpochManager>(EpochManager()) : std::nullopt;
+   m_core_manager                    = new CoreManager();
+   m_sim_thread_manager              = new SimThreadManager();
+   m_sampling_manager                = new SamplingManager();
    m_fastforward_performance_manager = FastForwardPerformanceManager::create();
-   m_rtn_tracer = RoutineTracer::create();
-   m_thread_manager = new ThreadManager();
+   m_rtn_tracer                      = RoutineTracer::create();
+   m_thread_manager                  = new ThreadManager();
 
    if (Sim()->getCfg()->getBool("traceinput/enabled"))
       m_trace_manager = new TraceManager();
    else
-      m_trace_manager = NULL;
+      m_trace_manager = nullptr;
 
    CircularLog::enableCallbacks();
 
@@ -175,7 +220,7 @@ void Simulator::start()
    InstMode::inst_mode_init = InstMode::fromString(getCfg()->getString("general/inst_mode_init"));
    InstMode::inst_mode_roi  = InstMode::fromString(getCfg()->getString("general/inst_mode_roi"));
    InstMode::inst_mode_end  = InstMode::fromString(getCfg()->getString("general/inst_mode_end"));
-   m_inst_mode_output = getCfg()->getBool("general/inst_mode_output");
+   m_inst_mode_output       = getCfg()->getBool("general/inst_mode_output");
 
    printInstModeSummary();
    setInstrumentationMode(InstMode::inst_mode_init, true /* update_barrier */);
@@ -183,8 +228,8 @@ void Simulator::start()
    /* Save a copy of the configuration for reference */
    m_config_file->saveAs(m_config.formatOutputFileName("sim.cfg"));
 
-// PIN_SpawnInternalThread doesn't schedule its threads until after PIN_StartProgram
-//   m_transport->barrier();
+   // PIN_SpawnInternalThread doesn't schedule its threads until after PIN_StartProgram
+   //   m_transport->barrier();
 
    m_hooks_manager->callHooks(HookType::HOOK_SIM_START, 0);
    m_stats_manager->recordStats("start");
@@ -224,11 +269,13 @@ Simulator::~Simulator()
 
    if (m_clock_skew_minimization_manager)
    {
-      delete m_clock_skew_minimization_manager; m_clock_skew_minimization_manager = NULL;
+      delete m_clock_skew_minimization_manager;
+      m_clock_skew_minimization_manager = nullptr;
    }
    if (m_clock_skew_minimization_server)
    {
-      delete m_clock_skew_minimization_server;  m_clock_skew_minimization_server = NULL;
+      delete m_clock_skew_minimization_server;
+      m_clock_skew_minimization_server = nullptr;
    }
 
    m_sim_thread_manager->quitSimThreads();
@@ -237,28 +284,28 @@ Simulator::~Simulator()
 
    if (m_rtn_tracer)
    {
-      delete m_rtn_tracer;             m_rtn_tracer = NULL;
+      delete m_rtn_tracer;             m_rtn_tracer = nullptr;
    }
    // Don't remove the trace manager as threads could still be alive even if they are done
-   //delete m_trace_manager;             m_trace_manager = NULL;
-   delete m_sampling_manager;          m_sampling_manager = NULL;
+   //delete m_trace_manager;             m_trace_manager = nullptr;
+   delete m_sampling_manager;          m_sampling_manager = nullptr;
    if (m_faultinjection_manager)
    {
-      delete m_faultinjection_manager; m_faultinjection_manager = NULL;
+      delete m_faultinjection_manager; m_faultinjection_manager = nullptr;
    }
-   delete m_sim_thread_manager;        m_sim_thread_manager = NULL;
+   delete m_sim_thread_manager;        m_sim_thread_manager = nullptr;
    // Don't remove the trace manager as threads could still be alive even if they are done
-   //delete m_thread_manager;            m_thread_manager = NULL;
-   delete m_thread_stats_manager;      m_thread_stats_manager = NULL;
-   delete m_core_manager;              m_core_manager = NULL;
-   delete m_dvfs_manager;              m_dvfs_manager = NULL;
-   delete m_magic_server;              m_magic_server = NULL;
-   delete m_sync_server;               m_sync_server = NULL;
-   delete m_syscall_server;            m_syscall_server = NULL;
-   delete m_hooks_manager;             m_hooks_manager = NULL;
-   delete m_tags_manager;              m_tags_manager = NULL;
-   delete m_transport;                 m_transport = NULL;
-   delete m_stats_manager;             m_stats_manager = NULL;
+   //delete m_thread_manager;            m_thread_manager = nullptr;
+   delete m_thread_stats_manager;      m_thread_stats_manager = nullptr;
+   delete m_core_manager;              m_core_manager = nullptr;
+   delete m_dvfs_manager;              m_dvfs_manager = nullptr;
+   delete m_magic_server;              m_magic_server = nullptr;
+   delete m_sync_server;               m_sync_server = nullptr;
+   delete m_syscall_server;            m_syscall_server = nullptr;
+   delete m_hooks_manager;             m_hooks_manager = nullptr;
+   delete m_tags_manager;              m_tags_manager = nullptr;
+   delete m_transport;                 m_transport = nullptr;
+   delete m_stats_manager;             m_stats_manager = nullptr;
 }
 
 void Simulator::enablePerformanceModels()
@@ -277,13 +324,14 @@ void Simulator::disablePerformanceModels()
       Sim()->getFastForwardPerformanceManager()->enable();
 }
 
-void Simulator::setInstrumentationMode(InstMode::inst_mode_t new_mode, bool update_barrier)
+void Simulator::setInstrumentationMode(const InstMode::inst_mode_t new_mode, const bool update_barrier) const
 {
    if (new_mode != InstMode::inst_mode)
    {
       if (m_inst_mode_output && InstMode::inst_mode != InstMode::INVALID)
       {
-         printf("[SNIPER] Setting instrumentation mode to %s\n", inst_mode_names[new_mode]); fflush(stdout);
+         printf("[SNIPER] Setting instrumentation mode to %s\n", inst_mode_names[new_mode]);
+         fflush(stdout);
       }
       InstMode::inst_mode = new_mode;
 
@@ -296,15 +344,16 @@ void Simulator::setInstrumentationMode(InstMode::inst_mode_t new_mode, bool upda
       if (update_barrier && !Sim()->getFastForwardPerformanceManager())
          getClockSkewMinimizationServer()->setDisable(new_mode != InstMode::DETAILED);
 
-      Sim()->getHooksManager()->callHooks(HookType::HOOK_INSTRUMENT_MODE, (UInt64)new_mode);
+      Sim()->getHooksManager()->callHooks(HookType::HOOK_INSTRUMENT_MODE, static_cast<UInt64>(new_mode));
    }
 }
 
-void Simulator::printInstModeSummary()
+void
+Simulator::printInstModeSummary()
 {
    printf("[SNIPER] --------------------------------------------------------------------------------\n");
    printf("[SNIPER] Sniper using ");
-   switch(getConfig()->getSimulationMode())
+   switch (getConfig()->getSimulationMode())
    {
       case Config::PINTOOL:
          printf("Pin");
@@ -316,7 +365,8 @@ void Simulator::printInstModeSummary()
          LOG_PRINT_ERROR("Unknown simulation mode");
    }
    printf(" frontend\n");
-   switch(getConfig()->getSimulationROI())
+   printf("[SNIPER] Running project [ %s ]\n", Project::toName(m_project_type).c_str()); // Added by Kleber Kruger
+   switch (getConfig()->getSimulationROI())
    {
       case Config::ROI_FULL:
          printf("[SNIPER] Running full application in %s mode\n", inst_mode_names[InstMode::inst_mode_roi]);

@@ -1,5 +1,5 @@
-#ifndef __CACHE_BASE_H__
-#define __CACHE_BASE_H__
+#ifndef CACHE_BASE_H
+#define CACHE_BASE_H
 
 #include "fixed_types.h"
 
@@ -69,7 +69,7 @@ class CacheBase
       UInt64 m_cache_size;
       UInt32 m_associativity;
       UInt32 m_blocksize;
-      CacheBase::hash_t m_hash;
+      hash_t m_hash;
       UInt32 m_num_sets;
       AddressHomeLookup *m_ahl;
 
@@ -79,19 +79,19 @@ class CacheBase
 
    public:
       // constructors/destructors
-      CacheBase(String name, UInt32 num_sets, UInt32 associativity, UInt32 cache_block_size, CacheBase::hash_t hash, AddressHomeLookup *ahl = NULL);
+      CacheBase(const String& name, UInt32 num_sets, UInt32 associativity, UInt32 cache_block_size, hash_t hash, AddressHomeLookup *ahl = nullptr);
       virtual ~CacheBase();
 
       // utilities
-      void splitAddress(const IntPtr addr, IntPtr& tag, UInt32& set_index) const;
-      void splitAddress(const IntPtr addr, IntPtr& tag, UInt32& set_index, UInt32& block_offset) const;
-      IntPtr tagToAddress(const IntPtr tag);
-      String getName(void) { return m_name; }
+      void splitAddress(IntPtr addr, IntPtr& tag, UInt32& set_index) const;
+      void splitAddress(IntPtr addr, IntPtr& tag, UInt32& set_index, UInt32& block_offset) const;
+      [[nodiscard]] IntPtr tagToAddress(IntPtr tag) const;
+      [[nodiscard]] const String& getName() const { return m_name; }
 
-      UInt32 getNumSets() const { return m_num_sets; }
-      UInt32 getAssociativity() const { return m_associativity; }
+      [[nodiscard]] UInt32 getNumSets() const { return m_num_sets; }
+      [[nodiscard]] UInt32 getAssociativity() const { return m_associativity; }
 
-      static hash_t parseAddressHash(String hash_name);
+      static hash_t parseAddressHash(const String& hash_name);
 };
 
-#endif /* __CACHE_BASE_H__ */
+#endif /* CACHE_BASE_H */

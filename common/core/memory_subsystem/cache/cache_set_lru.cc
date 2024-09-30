@@ -5,8 +5,8 @@
 // Implements LRU replacement, optionally augmented with Query-Based Selection [Jaleel et al., MICRO'10]
 
 CacheSetLRU::CacheSetLRU(
-      CacheBase::cache_t cache_type,
-      UInt32 associativity, UInt32 blocksize, CacheSetInfoLRU* set_info, UInt8 num_attempts)
+      const CacheBase::cache_t cache_type,
+      const UInt32 associativity, const UInt32 blocksize, CacheSetInfoLRU* set_info, const UInt8 num_attempts)
    : CacheSet(cache_type, associativity, blocksize)
    , m_num_attempts(num_attempts)
    , m_set_info(set_info)
@@ -53,7 +53,7 @@ CacheSetLRU::getReplacementIndex(CacheCntlr *cntlr)
       bool qbs_reject = false;
       if (attempt < m_num_attempts - 1)
       {
-         LOG_ASSERT_ERROR(cntlr != NULL, "CacheCntlr == NULL, QBS can only be used when cntlr is passed in");
+         LOG_ASSERT_ERROR(cntlr != nullptr, "CacheCntlr == nullptr, QBS can only be used when cntlr is passed in");
          qbs_reject = cntlr->isInLowerLevelCache(m_cache_block_info_array[index]);
       }
 
@@ -63,7 +63,6 @@ CacheSetLRU::getReplacementIndex(CacheCntlr *cntlr)
          // Move this block to MRU and try again
          moveToMRU(index);
          cntlr->incrementQBSLookupCost();
-         continue;
       }
       else
       {
@@ -78,14 +77,14 @@ CacheSetLRU::getReplacementIndex(CacheCntlr *cntlr)
 }
 
 void
-CacheSetLRU::updateReplacementIndex(UInt32 accessed_index)
+CacheSetLRU::updateReplacementIndex(const UInt32 accessed_index)
 {
    m_set_info->increment(m_lru_bits[accessed_index]);
    moveToMRU(accessed_index);
 }
 
 void
-CacheSetLRU::moveToMRU(UInt32 accessed_index)
+CacheSetLRU::moveToMRU(const UInt32 accessed_index) const
 {
    for (UInt32 i = 0; i < m_associativity; i++)
    {
@@ -95,9 +94,9 @@ CacheSetLRU::moveToMRU(UInt32 accessed_index)
    m_lru_bits[accessed_index] = 0;
 }
 
-CacheSetInfoLRU::CacheSetInfoLRU(String name, String cfgname, core_id_t core_id, UInt32 associativity, UInt8 num_attempts)
+CacheSetInfoLRU::CacheSetInfoLRU(const String& name, const String& cfgname, const core_id_t core_id, const UInt32 associativity, const UInt8 num_attempts)
    : m_associativity(associativity)
-   , m_attempts(NULL)
+   , m_attempts(nullptr)
 {
    m_access = new UInt64[m_associativity];
    for(UInt32 i = 0; i < m_associativity; ++i)
@@ -120,6 +119,5 @@ CacheSetInfoLRU::CacheSetInfoLRU(String name, String cfgname, core_id_t core_id,
 CacheSetInfoLRU::~CacheSetInfoLRU()
 {
    delete [] m_access;
-   if (m_attempts)
-      delete [] m_attempts;
+   delete [] m_attempts;
 }

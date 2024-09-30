@@ -4,8 +4,10 @@
 #include "config.h"
 #include "log.h"
 #include "inst_mode.h"
+#include "epoch_manager.h" // Added by Kleber Kruger
 
 #include <decoder.h>
+#include <optional>
 
 class _Thread;
 class SyscallServer;
@@ -31,6 +33,21 @@ class RoutineTracer;
 class MemoryTracker;
 namespace config { class Config; }
 
+// Added by Kleber Kruger
+class Project {
+public:
+   enum class Type
+   {
+      UNKNOWN,
+      BASELINE,
+      DONUTS
+   };
+
+   static String toName(Type project_type);
+   static Type toType(const String &project_name);
+};
+using ProjectType = Project::Type;
+
 class Simulator
 {
 public:
@@ -44,45 +61,48 @@ public:
    static void allocate();
    static void release();
 
-   SyscallServer* getSyscallServer() { return m_syscall_server; }
-   SyncServer* getSyncServer() { return m_sync_server; }
-   MagicServer* getMagicServer() { return m_magic_server; }
-   ClockSkewMinimizationServer* getClockSkewMinimizationServer() { return m_clock_skew_minimization_server; }
-   CoreManager *getCoreManager() { return m_core_manager; }
-   SimThreadManager *getSimThreadManager() { return m_sim_thread_manager; }
-   ThreadManager *getThreadManager() { return m_thread_manager; }
-   ClockSkewMinimizationManager *getClockSkewMinimizationManager() { return m_clock_skew_minimization_manager; }
-   FastForwardPerformanceManager *getFastForwardPerformanceManager() { return m_fastforward_performance_manager; }
+   [[nodiscard]] SyscallServer* getSyscallServer() const { return m_syscall_server; }
+   [[nodiscard]] SyncServer* getSyncServer() const { return m_sync_server; }
+   [[nodiscard]] MagicServer* getMagicServer() const { return m_magic_server; }
+   [[nodiscard]] ClockSkewMinimizationServer* getClockSkewMinimizationServer() const { return m_clock_skew_minimization_server; }
+   [[nodiscard]] CoreManager *getCoreManager() const { return m_core_manager; }
+   [[nodiscard]] SimThreadManager *getSimThreadManager() const { return m_sim_thread_manager; }
+   [[nodiscard]] ThreadManager *getThreadManager() const { return m_thread_manager; }
+   [[nodiscard]] ClockSkewMinimizationManager *getClockSkewMinimizationManager() const { return m_clock_skew_minimization_manager; }
+   [[nodiscard]] FastForwardPerformanceManager *getFastForwardPerformanceManager() const { return m_fastforward_performance_manager; }
    Config *getConfig() { return &m_config; }
-   config::Config *getCfg() {
+   static config::Config *getCfg() {
       //if (! m_config_file_allowed)
       //   LOG_PRINT_ERROR("getCfg() called after init, this is not nice\n");
       return m_config_file;
    }
-   void hideCfg() { m_config_file_allowed = false; }
-   StatsManager *getStatsManager() { return m_stats_manager; }
-   ThreadStatsManager *getThreadStatsManager() { return m_thread_stats_manager; }
-   DvfsManager *getDvfsManager() { return m_dvfs_manager; }
-   HooksManager *getHooksManager() { return m_hooks_manager; }
-   SamplingManager *getSamplingManager() { return m_sampling_manager; }
-   FaultinjectionManager *getFaultinjectionManager() { return m_faultinjection_manager; }
-   TraceManager *getTraceManager() { return m_trace_manager; }
-   TagsManager *getTagsManager() { return m_tags_manager; }
-   RoutineTracer *getRoutineTracer() { return m_rtn_tracer; }
-   MemoryTracker *getMemoryTracker() { return m_memory_tracker; }
+   static void hideCfg() { m_config_file_allowed = false; }
+   [[nodiscard]] StatsManager *getStatsManager() const { return m_stats_manager; }
+   [[nodiscard]] ThreadStatsManager *getThreadStatsManager() const { return m_thread_stats_manager; }
+   [[nodiscard]] DvfsManager *getDvfsManager() const { return m_dvfs_manager; }
+   [[nodiscard]] HooksManager *getHooksManager() const { return m_hooks_manager; }
+   [[nodiscard]] SamplingManager *getSamplingManager() const { return m_sampling_manager; }
+   [[nodiscard]] FaultinjectionManager *getFaultinjectionManager() const { return m_faultinjection_manager; }
+   [[nodiscard]] TraceManager *getTraceManager() const { return m_trace_manager; }
+   [[nodiscard]] TagsManager *getTagsManager() const { return m_tags_manager; }
+   [[nodiscard]] const std::optional<EpochManager>& getEpochManager() const { return m_epoch_manager; }
+   [[nodiscard]] RoutineTracer *getRoutineTracer() const { return m_rtn_tracer; }
+   [[nodiscard]] MemoryTracker *getMemoryTracker() const { return m_memory_tracker; }
    void setMemoryTracker(MemoryTracker *memory_tracker) { m_memory_tracker = memory_tracker; }
 
-   bool isRunning() { return m_running; }
+   [[nodiscard]] bool isRunning() const { return m_running; }
    static void enablePerformanceModels();
    static void disablePerformanceModels();
 
-   void setInstrumentationMode(InstMode::inst_mode_t new_mode, bool update_barrier);
-   InstMode::inst_mode_t getInstrumentationMode() { return InstMode::inst_mode; }
+   void setInstrumentationMode(InstMode::inst_mode_t new_mode, bool update_barrier) const;
+   static InstMode::inst_mode_t getInstrumentationMode() { return InstMode::inst_mode; }
 
    // Access to the Decoder library for the simulator run
    void createDecoder();
-   dl::Decoder *getDecoder();
-   
+   static dl::Decoder *getDecoder();
+
+   [[nodiscard]] ProjectType getProjectType() const { return m_project_type; }  // Added by Kleber Kruger
+
 private:
    Config m_config;
    Log m_log;
@@ -104,8 +124,10 @@ private:
    HooksManager *m_hooks_manager;
    SamplingManager *m_sampling_manager;
    FaultinjectionManager *m_faultinjection_manager;
+   std::optional<EpochManager> m_epoch_manager; // Added by Kleber Kruger
    RoutineTracer *m_rtn_tracer;
    MemoryTracker *m_memory_tracker;
+   ProjectType m_project_type;                  // Added by Kleber Kruger
 
    bool m_running;
    bool m_inst_mode_output;
@@ -115,7 +137,9 @@ private:
    static config::Config *m_config_file;
    static bool m_config_file_allowed;
    static Config::SimulationMode m_mode;
-   
+
+   static ProjectType loadProjectType();  // Added by Kleber Kruger
+
    // Object to access the decoder library with the correct configuration
    static dl::Decoder *m_decoder;
    // Surrogate to create a Decoder object for a specific architecture

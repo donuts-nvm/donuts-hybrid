@@ -1,14 +1,15 @@
 #include "cache_atd.h"
 #include "cache_set.h"
-#include "pr_l1_cache_block_info.h"
-#include "stats.h"
 #include "config.hpp"
+#include "pr_l1_cache_block_info.h"
 #include "rng.h"
+#include "stats.h"
 
-ATD::ATD(String name, String configName, core_id_t core_id, UInt32 num_sets, UInt32 associativity,
-         UInt32 cache_block_size, String replacement_policy, CacheBase::hash_t hash_function)
+#include <cache_set_donuts.h>
+
+ATD::ATD(const String& name, const String& configName, const core_id_t core_id, const UInt32 num_sets, const UInt32 associativity,
+         const UInt32 cache_block_size, const String& replacement_policy, const CacheBase::hash_t hash_function)
    : m_cache_base(name, num_sets, associativity, cache_block_size, hash_function)
-   , m_sets()
    , loads(0)
    , stores(0)
    , load_misses(0)
@@ -19,6 +20,7 @@ ATD::ATD(String name, String configName, core_id_t core_id, UInt32 num_sets, UIn
    , stores_destructive(0)
 {
    m_set_info = CacheSet::createCacheSetInfo(name, configName, core_id, replacement_policy, associativity);
+   const auto cache_set_threshold = CacheSetDonuts::getCacheSetThreshold(configName, core_id);
 
    registerStatsMetric(name, core_id, "loads", &loads);
    registerStatsMetric(name, core_id, "stores", &stores);
@@ -29,20 +31,21 @@ ATD::ATD(String name, String configName, core_id_t core_id, UInt32 num_sets, UIn
    registerStatsMetric(name, core_id, "stores-constructive", &stores_constructive);
    registerStatsMetric(name, core_id, "stores-destructive", &stores_destructive);
 
+   const auto policy = CacheSet::parsePolicyType(replacement_policy);
    String sampling = Sim()->getCfg()->getStringArray(configName + "/atd/sampling", core_id);
    if (sampling == "full")
    {
       for(UInt64 set_index = 0; set_index < num_sets; ++set_index)
-      {
-         m_sets[set_index] = CacheSet::createCacheSet(name, core_id, replacement_policy, CacheBase::PR_L1_CACHE, associativity, 0, m_set_info);
+      {  // Modified by Kleber Kruger (added arg index)
+         m_sets[set_index] = CacheSet::createCacheSet(set_index, name, core_id, policy, CacheBase::PR_L1_CACHE, associativity, 0, m_set_info, cache_set_threshold);
       }
    }
    else if (sampling == "2^n+1")
    {
       // Sample sets at indexes 2^N+1
       for(UInt64 set_index = 1; set_index < num_sets - 1; set_index <<= 1)
-      {
-         m_sets[set_index+1] = CacheSet::createCacheSet(name, core_id, replacement_policy, CacheBase::PR_L1_CACHE, associativity, 0, m_set_info);
+      {  // Modified by Kleber Kruger (added arg index)
+         m_sets[set_index+1] = CacheSet::createCacheSet(set_index, name, core_id, policy, CacheBase::PR_L1_CACHE, associativity, 0, m_set_info, cache_set_threshold);
       }
    }
    else if (sampling == "random")
@@ -57,12 +60,12 @@ ATD::ATD(String name, String configName, core_id_t core_id, UInt32 num_sets, UIn
       while(num_atds)
       {
          UInt64 set_index = rng_next(state) % num_sets;
-         if (m_sets.count(set_index) == 0)
-         {
-            m_sets[set_index] = CacheSet::createCacheSet(name, core_id, replacement_policy, CacheBase::PR_L1_CACHE, associativity, 0, m_set_info);
+         if (!m_sets.contains(set_index))
+         {  // Modified by Kleber Kruger (added arg index)
+            m_sets[set_index] = CacheSet::createCacheSet(set_index, name, core_id, policy, CacheBase::PR_L1_CACHE, associativity, 0, m_set_info, cache_set_threshold);
             --num_atds;
          }
-         LOG_ASSERT_ERROR(++num_attempts < 10 * num_sets, "Cound not find unique ATD sets even after many attempts");
+         LOG_ASSERT_ERROR(++num_attempts < 10 * num_sets, "Could not find unique ATD sets even after many attempts");
       }
    }
    else
@@ -73,16 +76,15 @@ ATD::ATD(String name, String configName, core_id_t core_id, UInt32 num_sets, UIn
 
 ATD::~ATD()
 {
-   if (m_set_info)
-      delete m_set_info;
+   delete m_set_info;
 }
 
-bool ATD::isSampledSet(UInt32 set_index)
+bool ATD::isSampledSet(const UInt32 set_index) const
 {
-   return m_sets.count(set_index);
+   return m_sets.contains(set_index);
 }
 
-void ATD::access(Core::mem_op_t mem_op_type, bool cache_hit, IntPtr address)
+void ATD::access(const Core::mem_op_t mem_op_type, const bool cache_hit, const IntPtr address)
 {
    IntPtr tag; UInt32 set_index;
    m_cache_base.splitAddress(address, tag, set_index);
@@ -90,7 +92,7 @@ void ATD::access(Core::mem_op_t mem_op_type, bool cache_hit, IntPtr address)
    if (isSampledSet(set_index))
    {
       UInt32 line_index = -1;
-      bool atd_hit = m_sets[set_index]->find(tag, &line_index);
+      const bool atd_hit = m_sets[set_index]->find(tag, &line_index);
 
       if (atd_hit)
       {
@@ -98,9 +100,9 @@ void ATD::access(Core::mem_op_t mem_op_type, bool cache_hit, IntPtr address)
       }
       else
       {
-         PrL1CacheBlockInfo* cache_block_info = new PrL1CacheBlockInfo(tag, CacheState::MODIFIED);
+         auto* cache_block_info = new PrL1CacheBlockInfo(tag, CacheState::MODIFIED);
          bool eviction; PrL1CacheBlockInfo evict_block_info;
-         m_sets[set_index]->insert(cache_block_info, NULL, &eviction, &evict_block_info, NULL);
+         m_sets[set_index]->insert(cache_block_info, nullptr, &eviction, &evict_block_info, nullptr);
          delete cache_block_info;
       }
 

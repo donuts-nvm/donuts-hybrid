@@ -5,11 +5,11 @@
 #include "address_home_lookup.h"
 
 CacheBase::CacheBase(
-   String name, UInt32 num_sets, UInt32 associativity, UInt32 cache_block_size,
-   CacheBase::hash_t hash, AddressHomeLookup *ahl)
+   const String& name, const UInt32 num_sets, const UInt32 associativity, const UInt32 cache_block_size,
+   const hash_t hash, AddressHomeLookup *ahl)
 :
    m_name(name),
-   m_cache_size(UInt64(num_sets) * associativity * cache_block_size),
+   m_cache_size(static_cast<UInt64>(num_sets) * associativity * cache_block_size),
    m_associativity(associativity),
    m_blocksize(cache_block_size),
    m_hash(hash),
@@ -23,29 +23,28 @@ CacheBase::CacheBase(
       "Caches of non-power of 2 size need funky hash function");
 }
 
-CacheBase::~CacheBase()
-{}
+CacheBase::~CacheBase() = default;
 
 // utilities
 CacheBase::hash_t
-CacheBase::parseAddressHash(String hash_name)
+CacheBase::parseAddressHash(const String& hash_name)
 {
    if (hash_name == "mask")
-      return CacheBase::HASH_MASK;
-   else if (hash_name == "mod")
-      return CacheBase::HASH_MOD;
-   else if (hash_name == "rng1_mod")
-      return CacheBase::HASH_RNG1_MOD;
-   else if (hash_name == "rng2_mod")
-      return CacheBase::HASH_RNG2_MOD;
-   else if (hash_name == "prime_dis")
-   	  return CacheBase::HASH_PRIME_DIS;
-   else if (hash_name == "xor_mod")
-   	  return CacheBase::HASH_XOR_MOD;
-   else if (hash_name == "mersenne_mod")
-   	  return CacheBase::HASH_MER_MOD;
-   else
-      LOG_PRINT_ERROR("Invalid address hash function %s", hash_name.c_str());
+      return HASH_MASK;
+   if (hash_name == "mod")
+      return HASH_MOD;
+   if (hash_name == "rng1_mod")
+      return HASH_RNG1_MOD;
+   if (hash_name == "rng2_mod")
+      return HASH_RNG2_MOD;
+   if (hash_name == "prime_dis")
+      return HASH_PRIME_DIS;
+   if (hash_name == "xor_mod")
+      return HASH_XOR_MOD;
+   if (hash_name == "mersenne_mod")
+      return HASH_MER_MOD;
+
+   LOG_PRINT_ERROR("Invalid address hash function %s", hash_name.c_str());
 }
 
 void
@@ -53,50 +52,49 @@ CacheBase::splitAddress(const IntPtr addr, IntPtr& tag, UInt32& set_index) const
 {
    tag = addr >> m_log_blocksize;
 
-   IntPtr linearAddress = m_ahl ? m_ahl->getLinearAddress(addr) : addr;
-   IntPtr block_num = linearAddress >> m_log_blocksize;
+   const IntPtr linearAddress = m_ahl ? m_ahl->getLinearAddress(addr) : addr;
+   const IntPtr block_num = linearAddress >> m_log_blocksize;
 
    switch(m_hash)
    {
-      case CacheBase::HASH_MASK:
+      case HASH_MASK:
          set_index = block_num & (m_num_sets-1);
          break;
-      case CacheBase::HASH_MOD:
+      case HASH_MOD:
          set_index = block_num % m_num_sets;
          break;
-      case CacheBase::HASH_RNG1_MOD:
+      case HASH_RNG1_MOD:
       {
          UInt64 state = rng_seed(block_num);
          set_index = rng_next(state) % m_num_sets;
          break;
       }
-      case CacheBase::HASH_RNG2_MOD:
+      case HASH_RNG2_MOD:
       {
          UInt64 state = rng_seed(block_num);
          rng_next(state);
          set_index = rng_next(state) % m_num_sets;
          break;
       }
-      case CacheBase::HASH_PRIME_DIS:
+      case HASH_PRIME_DIS:
       {
-
-      	 //Prime Displacement Hashing Function (HPCA04)
+         //Prime Displacement Hashing Function (HPCA04)
          UInt64 si = block_num % m_num_sets;
          UInt64 Ti = block_num >> m_log_num_sets;
          UInt64 rho = 3;
          set_index = (rho * Ti + si) % m_num_sets;
          break;
       }
-      case CacheBase::HASH_XOR_MOD:
+      case HASH_XOR_MOD:
       {
       	 //Based on related work of "Eliminating Conflict Misses Using Prime Number-Based Cache Indexing" (TC may 2005)
       	 //XOR based hash function
       	 UInt64 si = block_num % m_num_sets;
       	 UInt64 ti = (block_num >> m_log_num_sets) % m_num_sets;
-      	 set_index = (si ^ ti); // ^ -> bitwise XOR
+      	 set_index = si ^ ti; // ^ -> bitwise XOR
       	 break;
       }
-      case CacheBase::HASH_MER_MOD:
+      case HASH_MER_MOD:
       {
       	 //Based on related work of "Eliminating Conflict Misses Using Prime Number-Based Cache Indexing" (TC may 2005)
       	 //Mersenne based hash function
@@ -118,7 +116,7 @@ CacheBase::splitAddress(const IntPtr addr, IntPtr& tag, UInt32& set_index,
 }
 
 IntPtr
-CacheBase::tagToAddress(const IntPtr tag)
+CacheBase::tagToAddress(const IntPtr tag) const
 {
    return tag << m_log_blocksize;
 }

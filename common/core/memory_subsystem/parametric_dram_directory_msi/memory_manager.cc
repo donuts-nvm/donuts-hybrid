@@ -12,6 +12,7 @@
 #include "config.hpp"
 #include "distribution.h"
 #include "topology_info.h"
+#include "utils.h"
 
 #include <algorithm>
 
