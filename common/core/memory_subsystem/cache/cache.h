@@ -35,7 +35,7 @@ class Cache : public CacheBase
       bool invalidateSingleLine(IntPtr addr) const;
       CacheBlockInfo* accessSingleLine(IntPtr addr,
             access_t access_type, Byte* buff, UInt32 bytes, const SubsecondTime& now, bool update_replacement) const;
-      void insertSingleLine(IntPtr addr, Byte* fill_buff,
+      void insertSingleLine(IntPtr addr, const Byte* fill_buff,
             bool* eviction, IntPtr* evict_addr,
             CacheBlockInfo* evict_block_info, Byte* evict_buff, const SubsecondTime& now, CacheCntlr *cntlr = nullptr) const;
       [[nodiscard]] CacheBlockInfo* peekSingleLine(IntPtr addr) const;
@@ -50,13 +50,15 @@ class Cache : public CacheBase
       [[nodiscard]] float getCapacityUsed() const;                                                  // Added by Kleber Kruger
       [[nodiscard]] float getSetCapacityUsed(UInt32 index) const;                                   // Added by Kleber Kruger
 
-      [[nodiscard]] static float getCacheThreshold(const String& cfgname);                          // Added by Kleber Kruger
       [[nodiscard]] static bool isDonutsAndLLC(const String& cfgname);                              // Added by Kleber Kruger
+      [[nodiscard]] static std::optional<float> getCacheThreshold(const String& cfgname);           // Added by Kleber Kruger
 
       void enable() { m_enabled = true; }
       void disable() { m_enabled = false; }
 
 protected:
+      static constexpr float DEFAULT_CACHE_THRESHOLD = 1.0; // Added by Kleber Kruger
+
       bool m_enabled;
 
       // Cache counters
@@ -71,7 +73,7 @@ protected:
       FaultInjector *m_fault_injector;
 
       ReplacementPolicy m_replacement_policy; // Added by Kleber Kruger
-      float m_cache_threshold;                // Added by Kleber Kruger
+      std::optional<float> m_cache_threshold; // Added by Kleber Kruger
 
 #ifdef ENABLE_SET_USAGE_HIST
       UInt64* m_set_usage_hist;

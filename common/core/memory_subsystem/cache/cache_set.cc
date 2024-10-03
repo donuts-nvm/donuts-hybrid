@@ -142,9 +142,9 @@ CacheSet::createCacheSet(const UInt32 index,
                          const UInt32 associativity,
                          const UInt32 blocksize,
                          CacheSetInfo* set_info,
-                         const float cache_set_threshold)
+                         const std::optional<float> cache_set_threshold) // Added by Kleber Kruger
 {
-   const bool is_donuts_llc = Cache::isDonutsAndLLC(cfgname);
+   const bool is_donuts_llc = cache_set_threshold.has_value();
    switch (replacement_policy)
    {
       case CacheBase::ROUND_ROBIN:
@@ -154,7 +154,7 @@ CacheSet::createCacheSet(const UInt32 index,
       case CacheBase::LRU:
          if (is_donuts_llc) {
             return new CacheSetLRUR(cache_type, index, associativity, blocksize, dynamic_cast<CacheSetInfoLRU*>(set_info),
-                                    getNumQBSAttempts(replacement_policy, cfgname, core_id), cache_set_threshold);
+                                    getNumQBSAttempts(replacement_policy, cfgname, core_id), cache_set_threshold.value());
          }
          return new CacheSetLRU(cache_type, associativity, blocksize, dynamic_cast<CacheSetInfoLRU*>(set_info),
                                 getNumQBSAttempts(replacement_policy, cfgname, core_id));

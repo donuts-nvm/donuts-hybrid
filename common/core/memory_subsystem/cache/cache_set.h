@@ -8,6 +8,8 @@
 #include "random.h"
 #include "log.h"
 
+#include <optional>
+
 // Per-cache object to store replacement-policy related info (e.g. statistics),
 // can collect data from all CacheSet* objects which are per set and implement the actual replacement policy
 class CacheSetInfo
@@ -46,7 +48,7 @@ class CacheSet
       // Modified by Kleber Kruger (added arg index and cache_set_threshold)
       static CacheSet* createCacheSet(UInt32 index, const String& cfgname, core_id_t core_id, CacheBase::ReplacementPolicy replacement_policy, CacheBase::cache_t cache_type,
                                       UInt32 associativity, UInt32 blocksize, CacheSetInfo* set_info = nullptr,
-                                      float cache_set_threshold = 1.0f); // Arg added by Kleber Kruger
+                                      std::optional<float> cache_set_threshold = std::nullopt); // Arg added by Kleber Kruger
       static CacheSetInfo* createCacheSetInfo(const String& name, const String& cfgname, core_id_t core_id, const String& replacement_policy, UInt32 associativity);
       static CacheBase::ReplacementPolicy parsePolicyType(const String& policy);
       static UInt8 getNumQBSAttempts(CacheBase::ReplacementPolicy, const String& cfgname, core_id_t core_id);

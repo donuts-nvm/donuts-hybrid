@@ -125,7 +125,7 @@ Cache::accessSingleLine(const IntPtr addr, const access_t access_type,
 }
 
 void
-Cache::insertSingleLine(IntPtr addr, Byte* fill_buff,
+Cache::insertSingleLine(const IntPtr addr, const Byte* fill_buff,
       bool* eviction, IntPtr* evict_addr,
       CacheBlockInfo* evict_block_info, Byte* evict_buff,
       const SubsecondTime& now, CacheCntlr *cntlr) const
@@ -142,13 +142,13 @@ Cache::insertSingleLine(IntPtr addr, Byte* fill_buff,
    *evict_addr = tagToAddress(evict_block_info->getTag());
 
    // NVM Checkpoint Support (Added by Kleber Kruger)
-   if (Sim()->getProjectType() == ProjectType::DONUTS && getCapacityUsed() >= m_cache_threshold)
+   if (Sim()->getProjectType() == ProjectType::DONUTS && getCapacityUsed() >= m_cache_threshold.value())
       cntlr->checkpoint(CheckpointReason::CACHE_THRESHOLD, set_index);
 
    if (m_fault_injector) {
       // NOTE: no callback is generated for read of evicted data
       UInt32 line_index = -1;
-      __attribute__((unused)) CacheBlockInfo* res = m_sets[set_index]->find(tag, &line_index);
+      __attribute__((unused)) const CacheBlockInfo* res = m_sets[set_index]->find(tag, &line_index);
       LOG_ASSERT_ERROR(res != nullptr, "Inserted line no longer there?");
 
       m_fault_injector->postWrite(addr, set_index * m_associativity + line_index, m_sets[set_index]->getBlockSize(), (Byte*)m_sets[set_index]->getDataPtr(line_index, 0), now);
@@ -229,14 +229,6 @@ Cache::getSetCapacityUsed(const UInt32 index) const
    return static_cast<float>(count) / static_cast<float>(m_associativity);
 }
 
-float
-Cache::getCacheThreshold(const String& cfgname)
-{
-   const String key = cfgname + "/cache_threshold";
-   return isDonutsAndLLC(cfgname) && Sim()->getCfg()->hasKey(key) ?
-          static_cast<float>(Sim()->getCfg()->getFloat(key)) : 1.0f;
-}
-
 bool
 Cache::isDonutsAndLLC(const String& cfgname)
 {
@@ -247,4 +239,15 @@ Cache::isDonutsAndLLC(const String& cfgname)
       return cfgname == last;
    }
    return false;
+}
+
+std::optional<float>
+Cache::getCacheThreshold(const String& cfgname)
+{
+   if (!isDonutsAndLLC(cfgname))
+      return std::nullopt;
+
+   const String key = cfgname + "/cache_threshold";
+   return Sim()->getCfg()->hasKey(key) ? static_cast<float>(Sim()->getCfg()->getFloat(key))
+                                          : DEFAULT_CACHE_THRESHOLD;
 }

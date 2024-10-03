@@ -21,7 +21,7 @@ TLB::TLB(String name, String cfgname, core_id_t core_id, UInt32 num_entries, UIn
 bool
 TLB::lookup(IntPtr address, SubsecondTime now, bool allocate_on_miss)
 {
-   bool hit = m_cache.accessSingleLine(address, Cache::LOAD, NULL, 0, now, true);
+   bool hit = m_cache.accessSingleLine(address, Cache::LOAD, nullptr, 0, now, true);
 
    m_access++;
 
@@ -49,7 +49,7 @@ TLB::allocate(IntPtr address, SubsecondTime now)
    bool eviction;
    IntPtr evict_addr;
    CacheBlockInfo evict_block_info;
-   m_cache.insertSingleLine(address, NULL, &eviction, &evict_addr, &evict_block_info, NULL, now);
+   m_cache.insertSingleLine(address, nullptr, &eviction, &evict_addr, &evict_block_info, nullptr, now);
 
    // Use next level as a victim cache
    if (eviction && m_next_level)

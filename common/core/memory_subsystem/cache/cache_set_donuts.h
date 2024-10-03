@@ -5,17 +5,16 @@
 
 class CacheSetDonuts : public virtual CacheSet {
 public:
-   static constexpr float DEFAULT_CACHE_SET_THRESHOLD = 1.0;
-
    CacheSetDonuts(CacheBase::cache_t cache_type,
                   UInt32 index, UInt32 associativity, UInt32 blocksize,
                   float cache_set_threshold = DEFAULT_CACHE_SET_THRESHOLD);
 
    ~CacheSetDonuts() override;
 
-   static float getCacheSetThreshold(const String& cfgname, core_id_t core_id);
+   static std::optional<float> getCacheSetThreshold(const String& cfgname, core_id_t core_id);
 
 protected:
+   static constexpr float DEFAULT_CACHE_SET_THRESHOLD = 1.0;
 
    UInt32 m_index;
    float m_cache_set_threshold;

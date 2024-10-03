@@ -36,7 +36,7 @@ bool Simulator::m_config_file_allowed = true;
 Config::SimulationMode Simulator::m_mode;
 dl::Decoder* Simulator::m_decoder;
 
-String Project::toName(Project::Type project_type)
+String Project::toName(const ProjectType project_type)
 {
    switch (project_type)
    {
@@ -71,9 +71,9 @@ Project::Type Project::toType(const String& project_name)
 ProjectType Simulator::loadProjectType()
 {
    const String key = "general/project_type";
-   String project   = Sim()->getCfg()->hasKey(key) ? Sim()->getCfg()->getString(key) : "baseline";
+   const String project = Sim()->getCfg()->hasKey(key) ? Sim()->getCfg()->getString(key) : "baseline";
 
-   auto project_type = Project::toType(project);
+   const auto project_type = Project::toType(project);
    LOG_ASSERT_ERROR(project_type != ProjectType::UNKNOWN, "Unknown project %s", project.c_str())
    return project_type;
 }

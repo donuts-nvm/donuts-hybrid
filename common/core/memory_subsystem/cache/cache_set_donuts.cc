@@ -21,10 +21,13 @@ bool CacheSetDonuts::isValidReplacement(const UInt32 index)
    return state != CacheState::SHARED_UPGRADING && state != CacheState::MODIFIED;
 }
 
-float
+std::optional<float>
 CacheSetDonuts::getCacheSetThreshold(const String& cfgname, const core_id_t core_id)
 {
+   if (!Cache::isDonutsAndLLC(cfgname))
+      return std::nullopt;
+
    const String key = cfgname + "/cache_set_threshold";
-   return Cache::isDonutsAndLLC(cfgname) && Sim()->getCfg()->hasKey(key) ?
-                 static_cast<float>(Sim()->getCfg()->getFloatArray(key, core_id)) : 1.0f;
+   return Sim()->getCfg()->hasKey(key) ? static_cast<float>(Sim()->getCfg()->getFloatArray(key, core_id))
+                                          : DEFAULT_CACHE_SET_THRESHOLD;
 }
