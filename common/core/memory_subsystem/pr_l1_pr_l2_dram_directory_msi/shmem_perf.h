@@ -1,5 +1,5 @@
-#ifndef __SHMEM_PERF_H
-#define __SHMEM_PERF_H
+#ifndef SHMEM_PERF_H
+#define SHMEM_PERF_H
 
 #include "subsecond_time.h"
 
@@ -43,9 +43,9 @@ class ShmemPerf
       void updatePacket(NetPacket& packet);
       void add(ShmemPerf *perf);
 
-      core_id_t getCore() const { return m_core_id; }
-      SubsecondTime getInitialTime() const { return m_time_begin; }
-      SubsecondTime &getComponent(shmem_times_type_t reason) { return m_times[reason]; }
+      [[nodiscard]] core_id_t getCore() const { return m_core_id; }
+      [[nodiscard]] SubsecondTime getInitialTime() const { return m_time_begin; }
+      SubsecondTime &getComponent(const shmem_times_type_t reason) { return m_times[reason]; }
 
    private:
       core_id_t m_core_id;
@@ -56,4 +56,4 @@ class ShmemPerf
 
 const char* ShmemReasonString(ShmemPerf::shmem_times_type_t reason);
 
-#endif // __SHMEM_PERF_H
+#endif // SHMEM_PERF_H

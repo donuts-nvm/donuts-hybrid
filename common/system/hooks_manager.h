@@ -1,5 +1,5 @@
-#ifndef __HOOKS_MANAGER_H
-#define __HOOKS_MANAGER_H
+#ifndef HOOKS_MANAGER_H
+#define HOOKS_MANAGER_H
 
 #include "fixed_types.h"
 #include "subsecond_time.h"
@@ -38,20 +38,22 @@ public:
       HOOK_APPLICATION_ROI_BEGIN, // none                            ROI begin, always triggers
       HOOK_APPLICATION_ROI_END,   // none                            ROI end, always triggers
       HOOK_SIGUSR1,             // none                              Sniper process received SIGUSR1
+      HOOK_EPOCH_START,         // Added by Kleber Kruger            An epoch starts
+      HOOK_EPOCH_END,           // Added by Kleber Kruger            An epoch ends
+      HOOK_EPOCH_PERSISTED,     // Added by Kleber Kruger            An epoch persisted
+      HOOK_EPOCH_TIMEOUT,       // Added by Kleber Kruger            An epoch timeout
+      HOOK_EPOCH_TIMEOUT_INS,   // Added by Kleber Kruger            An epoch timeout (by instructions' interval)
       HOOK_TYPES_MAX
    };
    static const char* hook_type_names[];
 };
 
-namespace std
-{
-   template <> struct hash<HookType::hook_type_t> {
-      size_t operator()(const HookType::hook_type_t & type) const {
-         //return std::hash<int>(type);
-         return (int)type;
-      }
-   };
-}
+template <> struct std::hash<HookType::hook_type_t> {
+   size_t operator()(const HookType::hook_type_t & type) const noexcept {
+      //return std::hash<int>(type);
+      return static_cast<int>(type);
+   }
+};
 
 class HooksManager
 {
@@ -65,33 +67,33 @@ public:
 
    typedef SInt64 (*HookCallbackFunc)(UInt64, UInt64);
    struct HookCallback {
-      HookCallbackFunc func;
-      UInt64 arg;
-      HookCallbackOrder order;
-      HookCallback(HookCallbackFunc _func, UInt64 _arg, HookCallbackOrder _order) : func(_func), arg(_arg), order(_order) {}
+      HookCallbackFunc func{};
+      UInt64 arg{};
+      HookCallbackOrder order{};
+      HookCallback(const HookCallbackFunc _func, const UInt64 _arg, const HookCallbackOrder _order) : func(_func), arg(_arg), order(_order) {}
    };
    typedef struct {
-      thread_id_t thread_id;
-      thread_id_t creator_thread_id;
+      thread_id_t thread_id{};
+      thread_id_t creator_thread_id{};
    } ThreadCreate;
    typedef struct {
-      thread_id_t thread_id;
-      subsecond_time_t time;
+      thread_id_t thread_id{};
+      subsecond_time_t time{};
    } ThreadTime;
    typedef struct {
-      thread_id_t thread_id;  // Thread stalling
-      ThreadManager::stall_type_t reason; // Reason for thread stall
-      subsecond_time_t time;  // Time at which the stall occurs (if known, else SubsecondTime::MaxTime())
+      thread_id_t thread_id{};  // Thread stalling
+      ThreadManager::stall_type_t reason{}; // Reason for thread stall
+      subsecond_time_t time{};  // Time at which the stall occurs (if known, else SubsecondTime::MaxTime())
    } ThreadStall;
    typedef struct {
-      thread_id_t thread_id;  // Thread being woken up
-      thread_id_t thread_by;  // Thread triggering the wakeup
-      subsecond_time_t time;  // Time at which the wakeup occurs (if known, else SubsecondTime::MaxTime())
+      thread_id_t thread_id{};  // Thread being woken up
+      thread_id_t thread_by{};  // Thread triggering the wakeup
+      subsecond_time_t time{};  // Time at which the wakeup occurs (if known, else SubsecondTime::MaxTime())
    } ThreadResume;
    typedef struct {
-      thread_id_t thread_id;  // Thread being migrated
-      core_id_t core_id;      // Core the thread is now running (or INVALID_CORE_ID == -1 for unscheduled)
-      subsecond_time_t time;  // Current time
+      thread_id_t thread_id{};  // Thread being migrated
+      core_id_t core_id{};      // Core the thread is now running (or INVALID_CORE_ID == -1 for unscheduled)
+      subsecond_time_t time{};  // Current time
    } ThreadMigrate;
 
    HooksManager();
@@ -104,4 +106,4 @@ private:
    std::unordered_map<HookType::hook_type_t, std::vector<HookCallback> > m_registry;
 };
 
-#endif /* __HOOKS_MANAGER_H */
+#endif /* HOOKS_MANAGER_H */

@@ -1,4 +1,4 @@
-#include <string.h>
+#include <cstring>
 #include "shmem_msg.h"
 #include "shmem_perf.h"
 #include "log.h"
@@ -12,18 +12,18 @@ namespace PrL1PrL2DramDirectoryMSI
       m_requester(INVALID_CORE_ID),
       m_where(HitWhere::UNKNOWN),
       m_address(INVALID_ADDRESS),
-      m_data_buf(NULL),
+      m_data_buf(nullptr),
       m_data_length(0),
       m_perf(perf)
    {}
 
-   ShmemMsg::ShmemMsg(msg_t msg_type,
-         MemComponent::component_t sender_mem_component,
-         MemComponent::component_t receiver_mem_component,
-         core_id_t requester,
-         IntPtr address,
+   ShmemMsg::ShmemMsg(const msg_t msg_type,
+         const MemComponent::component_t sender_mem_component,
+         const MemComponent::component_t receiver_mem_component,
+         const core_id_t requester,
+         const IntPtr address,
          Byte* data_buf,
-         UInt32 data_length,
+         const UInt32 data_length,
          ShmemPerf* perf) :
       m_msg_type(msg_type),
       m_sender_mem_component(sender_mem_component),
@@ -36,24 +36,24 @@ namespace PrL1PrL2DramDirectoryMSI
       m_perf(perf)
    {}
 
-   ShmemMsg::ShmemMsg(ShmemMsg* shmem_msg) :
+   ShmemMsg::ShmemMsg(const ShmemMsg* shmem_msg) :
       m_msg_type(shmem_msg->getMsgType()),
       m_sender_mem_component(shmem_msg->getSenderMemComponent()),
       m_receiver_mem_component(shmem_msg->getReceiverMemComponent()),
       m_requester(shmem_msg->getRequester()),
+      m_where(shmem_msg->getWhere()), // Fixed by Kleber Kruger
       m_address(shmem_msg->getAddress()),
       m_data_buf(shmem_msg->getDataBuf()),
       m_data_length(shmem_msg->getDataLength()),
       m_perf(shmem_msg->getPerf())
    {}
 
-   ShmemMsg::~ShmemMsg()
-   {}
+   ShmemMsg::~ShmemMsg() = default;
 
    ShmemMsg*
-   ShmemMsg::getShmemMsg(Byte* msg_buf, ShmemPerf* perf)
+   ShmemMsg::getShmemMsg(const Byte* msg_buf, ShmemPerf* perf)
    {
-      ShmemMsg* shmem_msg = new ShmemMsg(perf);
+      auto* shmem_msg = new ShmemMsg(perf);
       memcpy((void*) shmem_msg, msg_buf, sizeof(*shmem_msg));
       if (shmem_msg->getDataLength() > 0)
       {
@@ -64,13 +64,13 @@ namespace PrL1PrL2DramDirectoryMSI
    }
 
    Byte*
-   ShmemMsg::makeMsgBuf()
+   ShmemMsg::makeMsgBuf() const
    {
-      Byte* msg_buf = new Byte[getMsgLen()];
+      auto* msg_buf = new Byte[getMsgLen()];
       memcpy(msg_buf, (void*) this, sizeof(*this));
       if (m_data_length > 0)
       {
-         LOG_ASSERT_ERROR(m_data_buf != NULL, "m_data_buf(%p)", m_data_buf);
+         LOG_ASSERT_ERROR(m_data_buf != nullptr, "m_data_buf(%p)", m_data_buf);
          memcpy(msg_buf + sizeof(*this), (void*) m_data_buf, m_data_length);
       }
 
@@ -78,13 +78,13 @@ namespace PrL1PrL2DramDirectoryMSI
    }
 
    UInt32
-   ShmemMsg::getMsgLen()
+   ShmemMsg::getMsgLen() const
    {
-      return (sizeof(*this) + m_data_length);
+      return sizeof(*this) + m_data_length;
    }
 
    UInt32
-   ShmemMsg::getModeledLength()
+   ShmemMsg::getModeledLength() const
    {
       switch(m_msg_type)
       {
@@ -96,23 +96,24 @@ namespace PrL1PrL2DramDirectoryMSI
          case UPGRADE_REP:
          case UPGRADE_REQ:
          case INV_REP:
+         case COMMIT:         // Added by Kleber Kruger
          case DRAM_READ_REQ:
             // msg_type + address
             // msg_type - 1 byte
-            return (1 + sizeof(IntPtr));
+            return 1 + sizeof(IntPtr);
 
          case EX_REP:
          case SH_REP:
          case FLUSH_REP:
          case WB_REP:
+         case PERSIST:        // Added by Kleber Kruger
          case DRAM_WRITE_REQ:
          case DRAM_READ_REP:
             // msg_type + address + cache_block
-            return (1 + sizeof(IntPtr) + m_data_length);
+            return 1 + sizeof(IntPtr) + m_data_length;
 
          default:
             LOG_PRINT_ERROR("Unrecognized Msg Type(%u)", m_msg_type);
-            return 0;
       }
    }
 

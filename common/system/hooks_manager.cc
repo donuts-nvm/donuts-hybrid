@@ -27,28 +27,30 @@ const char* HookType::hook_type_names[] = {
    "HOOK_APPLICATION_ROI_BEGIN",
    "HOOK_APPLICATION_ROI_END",
    "HOOK_SIGUSR1",
+   "HOOK_EPOCH_START",        // Added by Kleber Kruger
+   "HOOK_EPOCH_END",          // Added by Kleber Kruger
+   "HOOK_EPOCH_PERSISTED",    // Added by Kleber Kruger
+   "HOOK_EPOCH_TIMEOUT",      // Added by Kleber Kruger
+   "HOOK_EPOCH_TIMEOUT_INS"   // Added by Kleber Kruger
 };
-static_assert(HookType::HOOK_TYPES_MAX == sizeof(HookType::hook_type_names) / sizeof(HookType::hook_type_names[0]),
-              "Not enough values in HookType::hook_type_names");
+static_assert(HookType::HOOK_TYPES_MAX == std::size(HookType::hook_type_names), "Not enough values in HookType::hook_type_names");
 
-HooksManager::HooksManager()
+HooksManager::HooksManager() = default;
+
+void HooksManager::registerHook(const HookType::hook_type_t type, const HookCallbackFunc func, const UInt64 argument, const HookCallbackOrder order)
 {
+   m_registry[type].emplace_back(func, argument, order);
 }
 
-void HooksManager::registerHook(HookType::hook_type_t type, HookCallbackFunc func, UInt64 argument, HookCallbackOrder order)
-{
-   m_registry[type].push_back(HookCallback(func, argument, order));
-}
-
-SInt64 HooksManager::callHooks(HookType::hook_type_t type, UInt64 arg, bool expect_return)
+SInt64 HooksManager::callHooks(const HookType::hook_type_t type, const UInt64 argument, const bool expect_return)
 {
    for(unsigned int order = 0; order < NUM_HOOK_ORDER; ++order)
    {
-      for(std::vector<HookCallback>::iterator it = m_registry[type].begin(); it != m_registry[type].end(); ++it)
+      for(const auto & it : m_registry[type])
       {
-         if (it->order == (HookCallbackOrder)order)
+         if (it.order == static_cast<HookCallbackOrder>(order))
          {
-            SInt64 result = it->func(it->arg, arg);
+            SInt64 result = it.func(it.arg, argument);
             if (expect_return && result != -1)
                return result;
          }

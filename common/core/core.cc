@@ -51,9 +51,8 @@ const char * core_state_names[] = {
    "idle",
    "broken",
 };
-static_assert(Core::NUM_STATES == sizeof(core_state_names) / sizeof(core_state_names[0]),
-              "Not enough values in core_state_names");
-const char * Core::CoreStateString(Core::State state)
+static_assert(Core::NUM_STATES == std::size(core_state_names), "Not enough values in core_state_names");
+const char * Core::CoreStateString(const State state)
 {
    LOG_ASSERT_ERROR(state < Core::NUM_STATES, "Invalid core state %d", state);
    return core_state_names[state];
@@ -64,14 +63,14 @@ Lock Core::m_global_core_lock;
 UInt64 Core::g_instructions_hpi_global = 0;
 UInt64 Core::g_instructions_hpi_global_callback = 0;
 
-Core::Core(SInt32 id)
+Core::Core(const SInt32 id)
    : m_core_id(id)
    , m_dvfs_domain(Sim()->getDvfsManager()->getCoreDomain(id))
-   , m_thread(NULL)
+   , m_thread(nullptr)
    , m_bbv(id)
    , m_topology_info(new TopologyInfo(id))
-   , m_cheetah_manager(Sim()->getCfg()->getBool("core/cheetah/enabled") ? new CheetahManager(id) : NULL)
-   , m_core_state(Core::IDLE)
+   , m_cheetah_manager(Sim()->getCfg()->getBool("core/cheetah/enabled") ? new CheetahManager(id) : nullptr)
+   , m_core_state(IDLE)
    , m_icache_last_block(-1)
    , m_spin_loops(0)
    , m_spin_instructions(0)
@@ -106,18 +105,16 @@ Core::Core(SInt32 id)
 
 Core::~Core()
 {
-   if (m_cheetah_manager)
-      delete m_cheetah_manager;
+   delete m_cheetah_manager;
    delete m_topology_info;
    delete m_memory_manager;
    delete m_shmem_perf_model;
    delete m_performance_model;
-   if (m_clock_skew_minimization_client)
-      delete m_clock_skew_minimization_client;
+   delete m_clock_skew_minimization_client;
    delete m_network;
 }
 
-void Core::enablePerformanceModels()
+void Core::enablePerformanceModels() const
 {
    getShmemPerfModel()->enable();
    getMemoryManager()->enableModels();
@@ -125,7 +122,7 @@ void Core::enablePerformanceModels()
    getPerformanceModel()->enable();
 }
 
-void Core::disablePerformanceModels()
+void Core::disablePerformanceModels() const
 {
    getShmemPerfModel()->disable();
    getMemoryManager()->disableModels();
@@ -134,7 +131,7 @@ void Core::disablePerformanceModels()
 }
 
 bool
-Core::countInstructions(IntPtr address, UInt32 count)
+Core::countInstructions(const IntPtr address, const UInt32 count)
 {
    bool check_rescheduled = false;
 
@@ -191,27 +188,25 @@ Core::hookPeriodicInsCall()
 }
 
 bool
-Core::accessBranchPredictor(IntPtr eip, bool taken, bool indirect, IntPtr target)
+Core::accessBranchPredictor(const IntPtr eip, const bool taken, const bool indirect, const IntPtr target) const
 {
    PerformanceModel *prfmdl = getPerformanceModel();
    BranchPredictor *bp = prfmdl->getBranchPredictor();
 
    if (bp)
    {
-      bool prediction = bp->predict(indirect, eip, target);
+      const bool prediction = bp->predict(indirect, eip, target);
       bp->update(prediction, taken, indirect, eip, target);
-      return (prediction != taken);
+      return prediction != taken;
    }
-   else
-   {
-      return false;
-   }
+
+   return false;
 }
 
 MemoryResult
-makeMemoryResult(HitWhere::where_t _hit_where, SubsecondTime _latency)
+makeMemoryResult(const HitWhere::where_t _hit_where, const SubsecondTime& _latency)
 {
-   LOG_ASSERT_ERROR(_hit_where < HitWhere::NUM_HITWHERES, "Invalid HitWhere %u", (long)_hit_where);
+   LOG_ASSERT_ERROR(_hit_where < HitWhere::NUM_HITWHERES, "Invalid HitWhere %u", static_cast<long>(_hit_where));
    MemoryResult res;
    res.hit_where = _hit_where;
    res.latency = _latency;
@@ -219,19 +214,19 @@ makeMemoryResult(HitWhere::where_t _hit_where, SubsecondTime _latency)
 }
 
 void
-Core::logMemoryHit(bool icache, mem_op_t mem_op_type, IntPtr address, MemModeled modeled, IntPtr eip)
+Core::logMemoryHit(const bool icache, const mem_op_t mem_op_type, const IntPtr address, const MemModeled modeled, const IntPtr eip) const
 {
    getMemoryManager()->addL1Hits(icache, mem_op_type, 1);
 }
 
 MemoryResult
-Core::readInstructionMemory(IntPtr address, UInt32 instruction_size)
+Core::readInstructionMemory(IntPtr address, const UInt32 instruction_size)
 {
    LOG_PRINT("Instruction: Address(0x%x), Size(%u), Start READ",
            address, instruction_size);
 
-   UInt64 blockmask = ~(getMemoryManager()->getCacheBlockSize() - 1);
-   bool single_cache_line = ((address & blockmask) == ((address + instruction_size - 1) & blockmask));
+   const UInt64 blockmask = ~(getMemoryManager()->getCacheBlockSize() - 1);
+   const bool single_cache_line = ((address & blockmask) == ((address + instruction_size - 1) & blockmask));
 
    // Assume the core reads full instruction cache lines and caches them internally for subsequent instructions.
    // This reduces L1-I accesses and power to more realistic levels.
@@ -245,11 +240,8 @@ Core::readInstructionMemory(IntPtr address, UInt32 instruction_size)
       {
          return makeMemoryResult(HitWhere::L1I, getMemoryManager()->getL1HitLatency());
       }
-      else
-      {
-         // Instruction spanning cache lines: drop the first line, do access the second one
-         address = (address & blockmask) + getMemoryManager()->getCacheBlockSize();
-      }
+      // Instruction spanning cache lines: drop the first line, do access the second one
+      address = (address & blockmask) + getMemoryManager()->getCacheBlockSize();
    }
 
    // Update the most recent cache line accessed
@@ -257,15 +249,15 @@ Core::readInstructionMemory(IntPtr address, UInt32 instruction_size)
 
    // Cases with multiple cache lines or when we are not sure that it will be a hit call into the caches
    return initiateMemoryAccess(MemComponent::L1_ICACHE,
-             Core::NONE, Core::READ, address & blockmask, NULL, getMemoryManager()->getCacheBlockSize(), MEM_MODELED_COUNT_TLBTIME, 0, SubsecondTime::MaxTime());
+             Core::NONE, Core::READ, address & blockmask, nullptr, getMemoryManager()->getCacheBlockSize(), MEM_MODELED_COUNT_TLBTIME, 0, SubsecondTime::MaxTime());
 }
 
-void Core::accessMemoryFast(bool icache, mem_op_t mem_op_type, IntPtr address)
+void Core::accessMemoryFast(const bool icache, const mem_op_t mem_op_type, const IntPtr address) const
 {
    if (m_cheetah_manager && icache == false)
       m_cheetah_manager->access(mem_op_type, address);
 
-   SubsecondTime latency = getMemoryManager()->coreInitiateMemoryAccessFast(icache, mem_op_type, address);
+   const SubsecondTime latency = getMemoryManager()->coreInitiateMemoryAccessFast(icache, mem_op_type, address);
 
    if (latency > SubsecondTime::Zero())
       m_performance_model->handleMemoryLatency(latency, HitWhere::MISS);
@@ -273,19 +265,19 @@ void Core::accessMemoryFast(bool icache, mem_op_t mem_op_type, IntPtr address)
 
 MemoryResult
 Core::initiateMemoryAccess(MemComponent::component_t mem_component,
-      lock_signal_t lock_signal,
-      mem_op_t mem_op_type,
-      IntPtr address,
-      Byte* data_buf, UInt32 data_size,
-      MemModeled modeled,
-      IntPtr eip,
-      SubsecondTime now)
+      const lock_signal_t lock_signal,
+      const mem_op_t mem_op_type,
+      const IntPtr address,
+      Byte* data_buf, const UInt32 data_size,
+      const MemModeled modeled,
+      const IntPtr eip,
+      const SubsecondTime& now)
 {
    MYLOG("access %lx+%u %c%c modeled(%s)", address, data_size, mem_op_type == Core::WRITE ? 'W' : 'R', mem_op_type == Core::READ_EX ? 'X' : ' ', ModeledString(modeled));
 
    if (data_size <= 0)
    {
-      return makeMemoryResult((HitWhere::where_t)mem_component,SubsecondTime::Zero());
+      return makeMemoryResult(static_cast<HitWhere::where_t>(mem_component),SubsecondTime::Zero());
    }
 
    // Setting the initial time
@@ -319,13 +311,13 @@ Core::initiateMemoryAccess(MemComponent::component_t mem_component,
 
    UInt32 num_misses = 0;
    HitWhere::where_t hit_where = HitWhere::UNKNOWN;
-   UInt32 cache_block_size = getMemoryManager()->getCacheBlockSize();
+   const UInt32 cache_block_size = getMemoryManager()->getCacheBlockSize();
 
-   IntPtr begin_addr = address;
-   IntPtr end_addr = address + data_size;
-   IntPtr begin_addr_aligned = begin_addr - (begin_addr % cache_block_size);
-   IntPtr end_addr_aligned = end_addr - (end_addr % cache_block_size);
-   Byte *curr_data_buffer_head = (Byte*) data_buf;
+   const IntPtr begin_addr = address;
+   const IntPtr end_addr = address + data_size;
+   const IntPtr begin_addr_aligned = begin_addr - (begin_addr % cache_block_size);
+   const IntPtr end_addr_aligned = end_addr - (end_addr % cache_block_size);
+   Byte *curr_data_buffer_head = data_buf;
 
    for (IntPtr curr_addr_aligned = begin_addr_aligned; curr_addr_aligned <= end_addr_aligned; curr_addr_aligned += cache_block_size)
    {
@@ -362,15 +354,21 @@ Core::initiateMemoryAccess(MemComponent::component_t mem_component,
       if (m_cheetah_manager)
          m_cheetah_manager->access(mem_op_type, curr_addr_aligned);
 
-      HitWhere::where_t this_hit_where = getMemoryManager()->coreInitiateMemoryAccess(
+      // Added by Kleber Kruger to track PC
+      m_program_counter.pc = eip;
+      if (mem_component == MemComponent::L1_ICACHE) m_program_counter.i_pc = eip;
+      if (mem_component == MemComponent::L1_DCACHE) m_program_counter.d_pc = eip;
+
+      const HitWhere::where_t this_hit_where = getMemoryManager()->coreInitiateMemoryAccess(
                mem_component,
                lock_signal,
                mem_op_type,
                curr_addr_aligned, curr_offset,
-               data_buf ? curr_data_buffer_head : NULL, curr_size,
-               modeled);
+               data_buf ? curr_data_buffer_head : nullptr, curr_size,
+               modeled,
+               eip); // Added by Kleber Kruger
 
-      if (hit_where != (HitWhere::where_t)mem_component)
+      if (hit_where != static_cast<HitWhere::where_t>(mem_component))
       {
          // If it is a READ or READ_EX operation,
          // 'initiateSharedMemReq' causes curr_data_buffer_head
@@ -390,7 +388,7 @@ Core::initiateMemoryAccess(MemComponent::component_t mem_component,
    }
 
    // Get the final cycle time
-   SubsecondTime final_time = getShmemPerfModel()->getElapsedTime(ShmemPerfModel::_USER_THREAD);
+   const SubsecondTime final_time = getShmemPerfModel()->getElapsedTime(ShmemPerfModel::_USER_THREAD);
    LOG_ASSERT_ERROR(final_time >= initial_time,
          "final_time(%s) < initial_time(%s)",
          itostr(final_time).c_str(),
@@ -473,18 +471,18 @@ Core::accessMemory(lock_signal_t lock_signal, mem_op_t mem_op_type, IntPtr d_add
       {
          Sim()->getTraceManager()->accessMemory(m_core_id, lock_signal, mem_op_type, d_addr, data_buffer, data_size);
       }
-      data_buffer = NULL; // initiateMemoryAccess's data is not used
+      data_buffer = nullptr; // initiateMemoryAccess's data is not used
    }
 
    if (modeled == MEM_MODELED_NONE)
       return makeMemoryResult(HitWhere::UNKNOWN, SubsecondTime::Zero());
-   else
-      return initiateMemoryAccess(MemComponent::L1_DCACHE, lock_signal, mem_op_type, d_addr, (Byte*) data_buffer, data_size, modeled, eip, now);
+
+   return initiateMemoryAccess(MemComponent::L1_DCACHE, lock_signal, mem_op_type, d_addr, (Byte*) data_buffer, data_size, modeled, eip, now);
 }
 
 
 MemoryResult
-Core::nativeMemOp(lock_signal_t lock_signal, mem_op_t mem_op_type, IntPtr d_addr, char* data_buffer, UInt32 data_size)
+Core::nativeMemOp(const lock_signal_t lock_signal, const mem_op_t mem_op_type, const IntPtr d_addr, char* data_buffer, const UInt32 data_size)
 {
    if (data_size <= 0)
    {
@@ -499,11 +497,11 @@ Core::nativeMemOp(lock_signal_t lock_signal, mem_op_t mem_op_type, IntPtr d_addr
 
    if ( (mem_op_type == READ) || (mem_op_type == READ_EX) )
    {
-      applicationMemCopy ((void*) data_buffer, (void*) d_addr, (size_t) data_size);
+      applicationMemCopy (data_buffer, reinterpret_cast<void*>(d_addr), data_size);
    }
    else if (mem_op_type == WRITE)
    {
-      applicationMemCopy ((void*) d_addr, (void*) data_buffer, (size_t) data_size);
+      applicationMemCopy (reinterpret_cast<void*>(d_addr), data_buffer, data_size);
    }
 
    if (lock_signal == UNLOCK)
@@ -529,7 +527,7 @@ Core::emulateCpuid(UInt32 eax, UInt32 ecx, cpuid_result_t &res) const
       case 0x0:
       {
          cpuid(0, 0, res);
-         res.eax = std::max(UInt32(0xb), res.eax); // Maximum input eax: make sure 0xb is included
+         res.eax = std::max(static_cast<UInt32>(0xb), res.eax); // Maximum input eax: make sure 0xb is included
          break;
       }
       case 0x1:

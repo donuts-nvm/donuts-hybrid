@@ -22,11 +22,11 @@ class CheetahManager;
 #include "hit_where.h"
 
 struct MemoryResult {
-   HitWhere::where_t hit_where;
-   subsecond_time_t latency;
+   HitWhere::where_t hit_where{};
+   subsecond_time_t latency{};
 };
 
-MemoryResult makeMemoryResult(HitWhere::where_t _hit_where, SubsecondTime _latency);
+MemoryResult makeMemoryResult(HitWhere::where_t _hit_where, const SubsecondTime& _latency);
 void applicationMemCopy(void *dest, const void *src, size_t n);
 
 class Core
@@ -67,7 +67,7 @@ class Core
          NUM_MEM_OP_TYPES = MAX_MEM_OP - MIN_MEM_OP + 1
       };
 
-      /* To what extend to make a memory access visible to the simulated instruction */
+      /* To what extends to make a memory access visible to the simulated instruction */
       enum MemModeled
       {
          MEM_MODELED_NONE,      /* Not at all (pure backdoor access) */
@@ -80,58 +80,60 @@ class Core
 
       static const char * CoreStateString(State state);
 
-      Core(SInt32 id);
+      explicit Core(SInt32 id);
       ~Core();
 
       // Query and update branch predictor, return true on mispredict
-      bool accessBranchPredictor(IntPtr eip, bool taken, bool indirect, IntPtr target);
+      [[nodiscard]] bool accessBranchPredictor(IntPtr eip, bool taken, bool indirect, IntPtr target) const;
 
       MemoryResult readInstructionMemory(IntPtr address,
             UInt32 instruction_size);
 
       MemoryResult accessMemory(lock_signal_t lock_signal, mem_op_t mem_op_type, IntPtr d_addr, char* data_buffer, UInt32 data_size, MemModeled modeled = MEM_MODELED_NONE, IntPtr eip = 0, SubsecondTime now = SubsecondTime::MaxTime(), bool is_fault_mask = false);
-      MemoryResult nativeMemOp(lock_signal_t lock_signal, mem_op_t mem_op_type, IntPtr d_addr, char* data_buffer, UInt32 data_size);
+      static MemoryResult nativeMemOp(lock_signal_t lock_signal, mem_op_t mem_op_type, IntPtr d_addr, char* data_buffer, UInt32 data_size);
 
-      void accessMemoryFast(bool icache, mem_op_t mem_op_type, IntPtr address);
+      void accessMemoryFast(bool icache, mem_op_t mem_op_type, IntPtr address) const;
 
-      void logMemoryHit(bool icache, mem_op_t mem_op_type, IntPtr address, MemModeled modeled = MEM_MODELED_NONE, IntPtr eip = 0);
+      void logMemoryHit(bool icache, mem_op_t mem_op_type, IntPtr address, MemModeled modeled = MEM_MODELED_NONE, IntPtr eip = 0) const;
       bool countInstructions(IntPtr address, UInt32 count);
 
       void emulateCpuid(UInt32 eax, UInt32 ecx, cpuid_result_t &res) const;
 
       // network accessor since network is private
-      int getId() const { return m_core_id; }
-      Thread *getThread() const { return m_thread; }
+      [[nodiscard]] int getId() const { return m_core_id; }
+      [[nodiscard]] Thread *getThread() const { return m_thread; }
       void setThread(Thread *thread) { m_thread = thread; }
-      Network *getNetwork() { return m_network; }
-      PerformanceModel *getPerformanceModel() { return m_performance_model; }
-      ClockSkewMinimizationClient* getClockSkewMinimizationClient() const { return m_clock_skew_minimization_client; }
-      MemoryManagerBase *getMemoryManager() { return m_memory_manager; }
-      const MemoryManagerBase *getMemoryManager() const { return m_memory_manager; }
-      ShmemPerfModel* getShmemPerfModel() { return m_shmem_perf_model; }
-      const ComponentPeriod* getDvfsDomain() const { return m_dvfs_domain; }
-      TopologyInfo* getTopologyInfo() { return m_topology_info; }
-      const TopologyInfo* getTopologyInfo() const { return m_topology_info; }
-      const CheetahManager* getCheetahManager() const { return m_cheetah_manager; }
+      [[nodiscard]] Network *getNetwork() const { return m_network; }
+      [[nodiscard]] PerformanceModel *getPerformanceModel() const { return m_performance_model; }
+      [[nodiscard]] ClockSkewMinimizationClient* getClockSkewMinimizationClient() const { return m_clock_skew_minimization_client; }
+      [[nodiscard]] MemoryManagerBase *getMemoryManager() const { return m_memory_manager; }
+      [[nodiscard]] ShmemPerfModel* getShmemPerfModel() const { return m_shmem_perf_model; }
+      [[nodiscard]] const ComponentPeriod* getDvfsDomain() const { return m_dvfs_domain; }
+      [[nodiscard]] TopologyInfo* getTopologyInfo() const { return m_topology_info; }
+      [[nodiscard]] const CheetahManager* getCheetahManager() const { return m_cheetah_manager; }
 
-      State getState() const { return m_core_state; }
-      void setState(State core_state) { m_core_state = core_state; }
-      UInt64 getInstructionCount() { return m_instructions; }
+      [[nodiscard]] State getState() const { return m_core_state; }
+      void setState(const State core_state) { m_core_state = core_state; }
+      [[nodiscard]] UInt64 getInstructionCount() const { return m_instructions; }
       BbvCount *getBbvCount() { return &m_bbv; }
-      UInt64 getInstructionsCallback() { return m_instructions_callback; }
-      bool isEnabledInstructionsCallback() { return m_instructions_callback != UINT64_MAX; }
-      void setInstructionsCallback(UInt64 instructions) { m_instructions_callback = m_instructions + instructions; }
+      [[nodiscard]] UInt64 getInstructionsCallback() const { return m_instructions_callback; }
+      [[nodiscard]] bool isEnabledInstructionsCallback() const { return m_instructions_callback != UINT64_MAX; }
+      void setInstructionsCallback(const UInt64 instructions) { m_instructions_callback = m_instructions + instructions; }
       void disableInstructionsCallback() { m_instructions_callback = UINT64_MAX; }
 
-      void enablePerformanceModels();
-      void disablePerformanceModels();
+      void enablePerformanceModels() const;
+      void disablePerformanceModels() const;
 
-      void updateSpinCount(UInt64 instructions, SubsecondTime elapsed_time)
+      void updateSpinCount(const UInt64 instructions, const SubsecondTime& elapsed_time)
       {
          m_spin_loops++;
          m_spin_instructions += instructions;
          m_spin_elapsed_time += elapsed_time;
       }
+
+      [[nodiscard]] IntPtr getProgramCounter() const { return m_program_counter.pc; }     // Added by Kleber Kruger
+      [[nodiscard]] IntPtr getLastPCToICache() const { return m_program_counter.i_pc; }   // Added by Kleber Kruger
+      [[nodiscard]] IntPtr getLastPCToDCache() const { return m_program_counter.d_pc; }   // Added by Kleber Kruger
 
    private:
       core_id_t m_core_id;
@@ -159,10 +161,10 @@ class Core
             Byte* data_buf, UInt32 data_size,
             MemModeled modeled,
             IntPtr eip,
-            SubsecondTime now);
+            const SubsecondTime& now);
 
       void hookPeriodicInsCheck();
-      void hookPeriodicInsCall();
+      static void hookPeriodicInsCall();
 
       IntPtr m_icache_last_block;
 
@@ -170,12 +172,20 @@ class Core
       UInt64 m_spin_instructions;
       SubsecondTime m_spin_elapsed_time;
 
+      // Added by Kleber Kruger to get PC
+      struct program_counter_t {
+         program_counter_t() : pc(0), i_pc(0), d_pc(0) {}
+         IntPtr pc;   // last value
+         IntPtr i_pc; // last value sent to i_cache
+         IntPtr d_pc; // last value sent to d_cache
+      } m_program_counter;
+
    protected:
       // Optimized version of countInstruction has direct access to m_instructions and m_instructions_callback
       friend class InstructionModeling;
 
       // In contrast to core->m_performance_model->m_instructions, this one always increments,
-      // also when performance modeling is disabled or when instrumenation mode is CACHE_ONLY or FAST_FORWARD
+      // also when performance modeling is disabled or when instrumentation mode is CACHE_ONLY or FAST_FORWARD
       UInt64 m_instructions;
       UInt64 m_instructions_callback;
       // HOOK_PERIODIC_INS implementation

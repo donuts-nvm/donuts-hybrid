@@ -30,6 +30,9 @@ namespace PrL1PrL2DramDirectoryMSI
             FLUSH_REP,
             WB_REP,
             NULLIFY_REQ,
+            // NVM Checkpoint Support (Added by Kleber Kruger)
+            COMMIT,
+            PERSIST,
             // Tag directory > DRAM
             DRAM_READ_REQ,
             DRAM_WRITE_REQ,
@@ -53,7 +56,7 @@ namespace PrL1PrL2DramDirectoryMSI
 
       public:
          ShmemMsg() = delete;
-         ShmemMsg(ShmemPerf* perf);
+         explicit ShmemMsg(ShmemPerf* perf);
          ShmemMsg(msg_t msg_type,
                MemComponent::component_t sender_mem_component,
                MemComponent::component_t receiver_mem_component,
@@ -62,30 +65,30 @@ namespace PrL1PrL2DramDirectoryMSI
                Byte* data_buf,
                UInt32 data_length,
                ShmemPerf* perf);
-         ShmemMsg(ShmemMsg* shmem_msg);
+         explicit ShmemMsg(const ShmemMsg* shmem_msg);
 
          ~ShmemMsg();
 
-         static ShmemMsg* getShmemMsg(Byte* msg_buf, ShmemPerf* perf);
-         Byte* makeMsgBuf();
-         UInt32 getMsgLen();
+         static ShmemMsg* getShmemMsg(const Byte* msg_buf, ShmemPerf* perf);
+         [[nodiscard]] Byte* makeMsgBuf() const;
+         [[nodiscard]] UInt32 getMsgLen() const;
 
          // Modeling
-         UInt32 getModeledLength();
+         [[nodiscard]] UInt32 getModeledLength() const;
 
-         msg_t getMsgType() { return m_msg_type; }
-         MemComponent::component_t getSenderMemComponent() { return m_sender_mem_component; }
-         MemComponent::component_t getReceiverMemComponent() { return m_receiver_mem_component; }
-         core_id_t getRequester() { return m_requester; }
-         IntPtr getAddress() { return m_address; }
-         Byte* getDataBuf() { return m_data_buf; }
-         UInt32 getDataLength() { return m_data_length; }
-         HitWhere::where_t getWhere() { return m_where; }
+         [[nodiscard]] msg_t getMsgType() const { return m_msg_type; }
+         [[nodiscard]] MemComponent::component_t getSenderMemComponent() const { return m_sender_mem_component; }
+         [[nodiscard]] MemComponent::component_t getReceiverMemComponent() const { return m_receiver_mem_component; }
+         [[nodiscard]] core_id_t getRequester() const { return m_requester; }
+         [[nodiscard]] IntPtr getAddress() const { return m_address; }
+         [[nodiscard]] Byte* getDataBuf() const { return m_data_buf; }
+         [[nodiscard]] UInt32 getDataLength() const { return m_data_length; }
+         [[nodiscard]] HitWhere::where_t getWhere() const { return m_where; }
 
          void setDataBuf(Byte* data_buf) { m_data_buf = data_buf; }
-         void setWhere(HitWhere::where_t where) { m_where = where; }
+         void setWhere(const HitWhere::where_t where) { m_where = where; }
 
-         ShmemPerf* getPerf() { return m_perf; }
+         [[nodiscard]] ShmemPerf* getPerf() const { return m_perf; }
 
    };
 
