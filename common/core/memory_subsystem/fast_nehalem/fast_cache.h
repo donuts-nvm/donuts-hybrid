@@ -1,18 +1,18 @@
-#ifndef __FAST_CACHE_H
-#define __FAST_CACHE_H
+#ifndef FAST_CACHE_H
+#define FAST_CACHE_H
 
 #include "memory_manager_fast.h"
 
 namespace FastNehalem
 {
-   class Dram : public CacheBase
+   class Dram final : public CacheBase
    {
       private:
          const ComponentLatency m_latency;
          UInt64 m_reads, m_writes;
          SubsecondTime m_total_latency;
       public:
-         Dram(Core *core, String name, UInt64 latency)
+         Dram(const Core *core, const String& name, const UInt64 latency)
             : m_latency(core->getDvfsDomain(), latency)
          {
             m_reads = m_writes = 0;
@@ -21,7 +21,7 @@ namespace FastNehalem
             m_total_latency = SubsecondTime::Zero();
             registerStatsMetric(name, core->getId(), "total-access-latency", &m_total_latency);
          }
-         SubsecondTime access(Core::mem_op_t mem_op_type, IntPtr tag)
+         SubsecondTime access(const Core::mem_op_t mem_op_type, const IntPtr tag) override
          {
             if (mem_op_type == Core::WRITE)
                ++m_writes;
@@ -79,7 +79,7 @@ namespace FastNehalem
          UInt64 m_loads, m_stores, m_load_misses, m_store_misses;
 
       public:
-         Cache(Core *core, String name, MemComponent::component_t mem_component, UInt64 latency, CacheBase* next_level)
+         Cache(const Core *core, const String& name, const MemComponent::component_t mem_component, const UInt64 latency, CacheBase* next_level)
             : m_mem_component(mem_component)
             , m_latency(core->getDvfsDomain(), latency)
             , m_next_level(next_level)
@@ -94,18 +94,18 @@ namespace FastNehalem
             registerStatsMetric(name, core->getId(), "load-misses", &m_load_misses);
             registerStatsMetric(name, core->getId(), "store-misses", &m_store_misses);
          }
-         virtual ~Cache() {}
+         ~Cache() override = default;
 
-         SubsecondTime access(Core::mem_op_t mem_op_type, IntPtr tag)
+         SubsecondTime access(Core::mem_op_t mem_op_type, IntPtr tag) override
          {
             if (mem_op_type == Core::WRITE) ++m_stores; else ++m_loads;
             if (m_sets[tag & m_sets_mask].find(tag))
                return m_latency.getLatency();
-            else
-            {
-               if (mem_op_type == Core::WRITE) ++m_store_misses; else ++m_load_misses;
-               return m_next_level->access(mem_op_type, tag);
-            }
+
+            if (mem_op_type == Core::WRITE) ++m_store_misses;
+            else ++m_load_misses;
+
+            return m_next_level->access(mem_op_type, tag);
          }
    };
 
@@ -118,7 +118,7 @@ namespace FastNehalem
          CacheLocked(Core *core, String name, MemComponent::component_t mem_component, UInt64 latency, CacheBase* next_level)
             : Cache<assoc, size_kb>(core, name, mem_component, latency, next_level)
          {}
-         SubsecondTime access(Core::mem_op_t mem_op_type, IntPtr tag)
+         SubsecondTime access(const Core::mem_op_t mem_op_type, const IntPtr tag) override
          {
             ScopedLock sl(lock);
             return Cache<assoc, size_kb>::access(mem_op_type, tag);
@@ -126,4 +126,4 @@ namespace FastNehalem
    };
 }
 
-#endif // __FAST_CACHE_H
+#endif // FAST_CACHE_H

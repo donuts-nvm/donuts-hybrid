@@ -1,18 +1,15 @@
-FROM ubuntu:20.04
+FROM ubuntu:24.04
 # Necessary for tzdata
 ENV DEBIAN_FRONTEND=noninteractive
 ARG TZ_ARG=UTC
 ENV TZ=${TZ_ARG}
-# Add i386 support for support for Pin
-RUN dpkg --add-architecture i386
 RUN apt-get update && apt-get install -y \
-    python \
+    python3 \
+    python3-dev \
+    python3-venv \
     screen \
     tmux \
     binutils \
-    libc6:i386 \
-    libncurses5:i386 \
-    libstdc++6:i386 \
  && rm -rf /var/lib/apt/lists/*
 # For building Sniper
 RUN apt-get update && apt-get install -y \
@@ -25,6 +22,7 @@ RUN apt-get update && apt-get install -y \
     libsqlite3-dev \
     zlib1g-dev \
     libbz2-dev \
+    libdb++-dev \
  && rm -rf /var/lib/apt/lists/*
 # For building RISC-V Tools
 RUN apt-get update && apt-get install -y \
@@ -54,20 +52,6 @@ RUN apt-get update && apt-get install -y \
     gdb \
     gfortran \
     git \
-    g++-9 \
+    g++ \
     vim \
  && rm -rf /var/lib/apt/lists/*
-# Install gcc-13 and g++-13
-RUN apt-get update && apt-get install -y \
-    software-properties-common \
-    wget \
-    lsb-release \
-    gnupg \
-    ca-certificates && \
-    add-apt-repository ppa:ubuntu-toolchain-r/test -y && \
-    apt-get update && \
-    apt-get install -y \
-    gcc-13 g++-13 && \
-    rm -rf /var/lib/apt/lists/* && \
-    update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 60 && \
-    update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-13 60

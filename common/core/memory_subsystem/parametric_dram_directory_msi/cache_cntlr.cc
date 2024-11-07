@@ -9,6 +9,8 @@
 #include "cache_atd.h"
 #include "shmem_perf.h"
 #include "utils.h"
+#include "cache_cntlr_donuts.h"  // Added by Kleber Kruger
+#include "epoch_manager.h"       // Added by Kleber Kruger
 
 #include <cstring>
 
@@ -280,6 +282,9 @@ CacheCntlr::CacheCntlr(MemComponent::component_t mem_component,
       }
       registerStatsMetric(name, core_id, "uncore-totaltime", &m_shmem_perf_totaltime);
       registerStatsMetric(name, core_id, "uncore-requests", &m_shmem_perf_numrequests);
+
+      // Added by Kleber Kruger -- FIXME: remove bugs that cause this restriction
+      LOG_ASSERT_ERROR(!m_cache_writethrough, "LLC writethrough not allowed");
    }
 }
 
@@ -331,7 +336,8 @@ CacheCntlr::processMemOpFromCore(
       IntPtr ca_address, UInt32 offset,
       Byte* data_buf, UInt32 data_length,
       bool modeled,
-      bool count)
+      bool count,
+      IntPtr eip) // Added by Kleber Kruger
 {
    HitWhere::where_t hit_where = HitWhere::MISS;
 
@@ -1306,9 +1312,9 @@ CacheCntlr::accessCache(
          // Write-through cache - Write the next level cache also
          if (m_cache_writethrough) {
             LOG_ASSERT_ERROR(m_next_cache_cntlr, "Writethrough enabled on last-level cache !?");
-MYLOG("writethrough start");
-            m_next_cache_cntlr->writeCacheBlock(ca_address, offset, data_buf, data_length, ShmemPerfModel::_USER_THREAD);
-MYLOG("writethrough done");
+            MYLOG("writethrough start");
+            m_next_cache_cntlr->writeCacheBlock(ca_address, offset, data_buf, data_length, ShmemPerfModel::_USER_THREAD, 0);
+            MYLOG("writethrough done");
          }
          break;
 
@@ -1479,7 +1485,7 @@ MYLOG("evicting @%lx", evict_address);
          } else {
             /* Send dirty block to next level cache. Probably we have an evict/victim buffer to do that when we're idle, so ignore timing */
             if (evict_block_info.getCState() == CacheState::MODIFIED)
-               m_next_cache_cntlr->writeCacheBlock(evict_address, 0, evict_buf, getCacheBlockSize(), thread_num);
+               m_next_cache_cntlr->writeCacheBlock(evict_address, 0, evict_buf, getCacheBlockSize(), thread_num, 0);
          }
          m_next_cache_cntlr->notifyPrevLevelEvict(m_core_id_master, m_mem_component, evict_address);
       }
@@ -1636,7 +1642,7 @@ CacheCntlr::updateCacheBlock(IntPtr address, CacheState::cstate_t new_cstate, Tr
             /* write straight into the next level cache */
             Byte data_buf[getCacheBlockSize()];
             retrieveCacheBlock(address, data_buf, thread_num, false);
-            m_next_cache_cntlr->writeCacheBlock(address, 0, data_buf, getCacheBlockSize(), thread_num);
+            m_next_cache_cntlr->writeCacheBlock(address, 0, data_buf, getCacheBlockSize(), thread_num, 0);
             is_writeback = true;
             sibling_hit = true;
 
@@ -1716,7 +1722,7 @@ CacheCntlr::updateCacheBlock(IntPtr address, CacheState::cstate_t new_cstate, Tr
 }
 
 void
-CacheCntlr::writeCacheBlock(IntPtr address, UInt32 offset, Byte* data_buf, UInt32 data_length, ShmemPerfModel::Thread_t thread_num)
+CacheCntlr::writeCacheBlock(IntPtr address, UInt32 offset, Byte* data_buf, UInt32 data_length, ShmemPerfModel::Thread_t thread_num, UInt64 eid)
 {
 MYLOG(" ");
 
@@ -1733,12 +1739,19 @@ assert(data_length==getCacheBlockSize());
          address + offset, Cache::STORE, data_buf, data_length, getShmemPerfModel()->getElapsedTime(thread_num), false);
       LOG_ASSERT_ERROR(cache_block_info, "writethrough expected a hit at next-level cache but got miss");
       LOG_ASSERT_ERROR(cache_block_info->getCState() == CacheState::MODIFIED, "Got writeback for non-MODIFIED line");
+      // Added by Kleber Kruger to copy eid field
+      cache_block_info->setEpochID(eid); // FIXME: Fix null value to write-buffer in async mode
    }
 
    if (m_cache_writethrough) {
-      acquireStackLock(true);
-      m_next_cache_cntlr->writeCacheBlock(address, offset, data_buf, data_length, thread_num);
-      releaseStackLock(true);
+      // Fixed by Kleber Kruger
+      #ifdef PRIVATE_L2_OPTIMIZATION
+      acquireStackLock(address, true);
+      #endif
+      m_next_cache_cntlr->writeCacheBlock(address, offset, data_buf, data_length, thread_num, 0);
+      #ifdef PRIVATE_L2_OPTIMIZATION
+      releaseStackLock(address, true);
+      #endif
    }
 }
 
@@ -2302,6 +2315,47 @@ Semaphore*
 CacheCntlr::getNetworkThreadSemaphore()
 {
    return m_network_thread_sem;
+}
+
+/**
+ * Create a CacheCntlr to specified project.
+ * Added by Kleber Kruger
+ *
+ * @param mem_component
+ * @param name
+ * @param core_id
+ * @param memory_manager
+ * @param tag_directory_home_lookup
+ * @param user_thread_sem
+ * @param network_thread_sem
+ * @param cache_block_size
+ * @param cache_params
+ * @param shmem_perf_model
+ * @param is_last_level_cache
+ *
+ * @return the CacheCntlr according to the specified cache configuration
+ */
+CacheCntlr *CacheCntlr::create(MemComponent::component_t mem_component,
+                               const String& name,
+                               core_id_t core_id,
+                               MemoryManager *memory_manager,
+                               AddressHomeLookup *tag_directory_home_lookup,
+                               Semaphore *user_thread_sem,
+                               Semaphore *network_thread_sem,
+                               UInt32 cache_block_size,
+                               CacheParameters &cache_params,
+                               ShmemPerfModel *shmem_perf_model,
+                               bool is_last_level_cache)
+{
+   if (Sim()->getProjectType() == ProjectType::DONUTS)
+   {
+      return new CacheCntlrDonuts(mem_component, name, core_id, memory_manager, tag_directory_home_lookup, user_thread_sem,
+                                  network_thread_sem, cache_block_size, cache_params, shmem_perf_model, is_last_level_cache,
+                                  Sim()->getEpochManager().value().getEpochCntlr(core_id));
+   }
+
+   return new CacheCntlr(mem_component, name, core_id, memory_manager, tag_directory_home_lookup, user_thread_sem,
+                               network_thread_sem, cache_block_size, cache_params, shmem_perf_model, is_last_level_cache);
 }
 
 }

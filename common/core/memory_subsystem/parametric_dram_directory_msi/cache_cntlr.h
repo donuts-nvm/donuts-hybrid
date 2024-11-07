@@ -190,17 +190,20 @@ namespace ParametricDramDirectoryMSI
             , m_evicting_address(0)
             , m_evicting_buf(NULL)
             , m_atds()
+            , m_log_blocksize(0)
+            , m_num_sets(0)
             , m_prefetch_list()
             , m_prefetch_next(SubsecondTime::Zero())
          {}
          ~CacheMasterCntlr();
 
          friend class CacheCntlr;
+         friend class CacheCntlrDonuts; // Added by Kleber Kruger
    };
 
    class CacheCntlr : ::CacheCntlr
    {
-      private:
+      protected: // Modified by Kleber Kruger (old value: private)
          // Data Members
          MemComponent::component_t m_mem_component;
          MemoryManager* m_memory_manager;
@@ -294,7 +297,8 @@ namespace ParametricDramDirectoryMSI
          SharedCacheBlockInfo* getCacheBlockInfo(IntPtr address);
          CacheState::cstate_t getCacheState(IntPtr address);
          CacheState::cstate_t getCacheState(CacheBlockInfo *cache_block_info);
-         SharedCacheBlockInfo* setCacheState(IntPtr address, CacheState::cstate_t cstate);
+         // Modified by Kleber Kruger (added virtual keyword)
+         virtual SharedCacheBlockInfo* setCacheState(IntPtr address, CacheState::cstate_t cstate);
 
          // Cache data operations
          void invalidateCacheBlock(IntPtr address);
@@ -303,7 +307,8 @@ namespace ParametricDramDirectoryMSI
 
          SharedCacheBlockInfo* insertCacheBlock(IntPtr address, CacheState::cstate_t cstate, Byte* data_buf, core_id_t requester, ShmemPerfModel::Thread_t thread_num);
          std::pair<SubsecondTime, bool> updateCacheBlock(IntPtr address, CacheState::cstate_t cstate, Transition::reason_t reason, Byte* out_buf, ShmemPerfModel::Thread_t thread_num);
-         void writeCacheBlock(IntPtr address, UInt32 offset, Byte* data_buf, UInt32 data_length, ShmemPerfModel::Thread_t thread_num);
+         // Modified by Kleber Kruger (added arg: eid)
+         void writeCacheBlock(IntPtr address, UInt32 offset, Byte* data_buf, UInt32 data_length, ShmemPerfModel::Thread_t thread_num, UInt64 eid);
 
          // Handle Request from previous level cache
          HitWhere::where_t processShmemReqFromPrevCache(CacheCntlr* requester, Core::mem_op_t mem_op_type, IntPtr address, bool modeled, bool count, Prefetch::prefetch_type_t isPrefetch, SubsecondTime t_issue, bool have_write_lock);
@@ -366,8 +371,8 @@ namespace ParametricDramDirectoryMSI
 
          virtual ~CacheCntlr();
 
-         Cache* getCache() { return m_master->m_cache; }
-         Lock& getLock() { return m_master->m_cache_lock; }
+         Cache* getCache() const { return m_master->m_cache; }
+         Lock& getLock() const { return m_master->m_cache_lock; }
 
          void setPrevCacheCntlrs(CacheCntlrList& prev_cache_cntlrs);
          void setNextCacheCntlr(CacheCntlr* next_cache_cntlr) { m_next_cache_cntlr = next_cache_cntlr; }
@@ -380,7 +385,8 @@ namespace ParametricDramDirectoryMSI
                IntPtr ca_address, UInt32 offset,
                Byte* data_buf, UInt32 data_length,
                bool modeled,
-               bool count);
+               bool count,
+               IntPtr eip); // Added by Kleber Kruger
          void updateHits(Core::mem_op_t mem_op_type, UInt64 hits);
 
          // Notify next level cache of so it can update its sharing set
@@ -395,17 +401,31 @@ namespace ParametricDramDirectoryMSI
          void acquireStackLock(UInt64 address, bool this_is_locked = false);
          void releaseStackLock(UInt64 address, bool this_is_locked = false);
 
-         bool isMasterCache(void) { return m_core_id == m_core_id_master; }
-         bool isFirstLevel(void) { return m_master->m_prev_cache_cntlrs.empty(); }
-         bool isLastLevel(void) { return ! m_next_cache_cntlr; }
+         bool isMasterCache() const { return m_core_id == m_core_id_master; }
+         bool isFirstLevel() const { return m_master->m_prev_cache_cntlrs.empty(); }
+         bool isLastLevel() const { return ! m_next_cache_cntlr; }
          bool isShared(core_id_t core_id); //< Return true if core shares this cache
 
-         bool isInLowerLevelCache(CacheBlockInfo *block_info);
-         void incrementQBSLookupCost();
+         bool isInLowerLevelCache(CacheBlockInfo *block_info) override;
+         void incrementQBSLookupCost() override;
 
-         void enable() { m_master->m_cache->enable(); }
-         void disable() { m_master->m_cache->disable(); }
+         void enable() const { m_master->m_cache->enable(); }
+         void disable() const { m_master->m_cache->disable(); }
 
+         // Added by Kleber Kruger
+         static CacheCntlr *create(MemComponent::component_t mem_component,
+                                   const String& name,
+                                   core_id_t core_id,
+                                   MemoryManager *memory_manager,
+                                   AddressHomeLookup *tag_directory_home_lookup,
+                                   Semaphore *user_thread_sem,
+                                   Semaphore *network_thread_sem,
+                                   UInt32 cache_block_size,
+                                   CacheParameters &cache_params,
+                                   ShmemPerfModel *shmem_perf_model,
+                                   bool is_last_level_cache);
+
+         friend class CacheCntlrDonuts; // Added by Kleber Kruger
          friend class CacheCntlrList;
          friend class MemoryManager;
    };

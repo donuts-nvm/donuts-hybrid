@@ -1,14 +1,12 @@
 FROM ubuntu:20.04
 
 LABEL author="kleber.kruger"
-LABEL maintainer="kleberkruger@gmail.com"
-
-ARG UID
-ARG USER
-ARG TZ_ARG=UTC
+LABEL contact="kleberkruger@gmail.com"
+LABEL description="Docker Image to dOnuts project container on LSC-Unicamp"
 
 # Necessary for tzdata
 ENV DEBIAN_FRONTEND=noninteractive
+ARG TZ_ARG=UTC
 ENV TZ=${TZ_ARG}
 
 ENV GRAPHITE_ROOT=${GRAPHITE_ROOT}
@@ -23,6 +21,9 @@ RUN apt-get update && apt-get install -y locales && \
 RUN dpkg --add-architecture i386
 RUN apt-get update && apt-get install -y \
     python \
+    python3 \
+    python3-dev \
+    python3-venv \
     screen \
     tmux \
     binutils \
@@ -91,6 +92,7 @@ RUN apt-get update && apt-get install -y \
     vim \
     nano \
     lsof \
+    task-spooler \
     && rm -rf /var/lib/apt/lists/*
 
 # For compile the benchmarks
@@ -102,11 +104,6 @@ RUN apt-get update && apt-get install -y \
     libxt-dev \
     libxmu-dev \
     libxi-dev \
-    task-spooler \
-    && rm -rf /var/lib/apt/lists/*
-
-# Upgrade OS
-RUN apt-get upgrade -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install sudo and SSH server
@@ -115,7 +112,18 @@ RUN apt-get update && apt-get install -y \
     openssh-server \
     && rm -rf /var/lib/apt/lists/*
 
+# Upgrade OS
+RUN apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+
+# Set enviroment variables
+ARG GRAPHITE_ROOT
+ENV GRAPHITE_ROOT=${GRAPHITE_ROOT}
+ARG BENCHMARKS_ROOT
+ENV BENCHMARKS_ROOT=${BENCHMARKS_ROOT}
+
 # Create user and setup permissions on /etc/sudoers
+ARG UID
+ARG USER
 RUN useradd -m -s /bin/bash -N -u $UID $USER && \
     # usermod -aG sudo $USER && \
     echo "${USER} ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers && \

@@ -1,5 +1,5 @@
-#ifndef __FAST_NEHALEM_H
-#define __FAST_NEHALEM_H
+#ifndef FAST_NEHALEM_H
+#define FAST_NEHALEM_H
 
 #include "memory_manager_fast.h"
 
@@ -33,4 +33,4 @@ namespace FastNehalem
    };
 }
 
-#endif // __FAST_NEHALEM_H
+#endif // FAST_NEHALEM_H

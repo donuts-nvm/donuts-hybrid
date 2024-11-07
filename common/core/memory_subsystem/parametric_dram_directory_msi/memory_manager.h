@@ -64,20 +64,20 @@ namespace ParametricDramDirectoryMSI
 
       public:
          MemoryManager(Core* core, Network* network, ShmemPerfModel* shmem_perf_model);
-         ~MemoryManager();
+         ~MemoryManager() override;
 
-         UInt64 getCacheBlockSize() const { return m_cache_block_size; }
+         [[nodiscard]] UInt64 getCacheBlockSize() const override { return m_cache_block_size; }
 
-         Cache* getCache(MemComponent::component_t mem_component) {
+         [[nodiscard]] Cache* getCache(MemComponent::component_t mem_component) const {
               return m_cache_cntlrs[mem_component == MemComponent::LAST_LEVEL_CACHE ? MemComponent::component_t(m_last_level_cache) : mem_component]->getCache();
          }
-         Cache* getL1ICache() { return getCache(MemComponent::L1_ICACHE); }
-         Cache* getL1DCache() { return getCache(MemComponent::L1_DCACHE); }
-         Cache* getLastLevelCache() { return getCache(MemComponent::LAST_LEVEL_CACHE); }
-         PrL1PrL2DramDirectoryMSI::DramDirectoryCache* getDramDirectoryCache() { return m_dram_directory_cntlr->getDramDirectoryCache(); }
-         PrL1PrL2DramDirectoryMSI::DramCntlr* getDramCntlr() { return m_dram_cntlr; }
-         AddressHomeLookup* getTagDirectoryHomeLookup() { return m_tag_directory_home_lookup; }
-         AddressHomeLookup* getDramControllerHomeLookup() { return m_dram_controller_home_lookup; }
+         [[nodiscard]] Cache* getL1ICache() const { return getCache(MemComponent::L1_ICACHE); }
+         [[nodiscard]] Cache* getL1DCache() const { return getCache(MemComponent::L1_DCACHE); }
+         [[nodiscard]] Cache* getLastLevelCache() const { return getCache(MemComponent::LAST_LEVEL_CACHE); }
+         [[nodiscard]] PrL1PrL2DramDirectoryMSI::DramDirectoryCache* getDramDirectoryCache() const { return m_dram_directory_cntlr->getDramDirectoryCache(); }
+         [[nodiscard]] PrL1PrL2DramDirectoryMSI::DramCntlr* getDramCntlr() const { return m_dram_cntlr; }
+         [[nodiscard]] AddressHomeLookup* getTagDirectoryHomeLookup() const { return m_tag_directory_home_lookup; }
+         [[nodiscard]] AddressHomeLookup* getDramControllerHomeLookup() const { return m_dram_controller_home_lookup; }
 
          CacheCntlr* getCacheCntlrAt(core_id_t core_id, MemComponent::component_t mem_component) { return m_all_cache_cntlrs[CoreComponentType(core_id, mem_component)]; }
          void setCacheCntlrAt(core_id_t core_id, MemComponent::component_t mem_component, CacheCntlr* cache_cntlr) { m_all_cache_cntlrs[CoreComponentType(core_id, mem_component)] = cache_cntlr; }
@@ -88,26 +88,27 @@ namespace ParametricDramDirectoryMSI
                Core::mem_op_t mem_op_type,
                IntPtr address, UInt32 offset,
                Byte* data_buf, UInt32 data_length,
-               Core::MemModeled modeled);
+               Core::MemModeled modeled,
+               IntPtr eip) override; // Added by Kleber Kruger
 
-         void handleMsgFromNetwork(NetPacket& packet);
+         void handleMsgFromNetwork(NetPacket& packet) override;
 
-         void sendMsg(PrL1PrL2DramDirectoryMSI::ShmemMsg::msg_t msg_type, MemComponent::component_t sender_mem_component, MemComponent::component_t receiver_mem_component, core_id_t requester, core_id_t receiver, IntPtr address, Byte* data_buf = NULL, UInt32 data_length = 0, HitWhere::where_t where = HitWhere::UNKNOWN, ShmemPerf *perf = NULL, ShmemPerfModel::Thread_t thread_num = ShmemPerfModel::NUM_CORE_THREADS);
+         void sendMsg(PrL1PrL2DramDirectoryMSI::ShmemMsg::msg_t msg_type, MemComponent::component_t sender_mem_component, MemComponent::component_t receiver_mem_component, core_id_t requester, core_id_t receiver, IntPtr address, Byte* data_buf = nullptr, UInt32 data_length = 0, HitWhere::where_t where = HitWhere::UNKNOWN, ShmemPerf *perf = nullptr, ShmemPerfModel::Thread_t thread_num = ShmemPerfModel::NUM_CORE_THREADS) override;
 
-         void broadcastMsg(PrL1PrL2DramDirectoryMSI::ShmemMsg::msg_t msg_type, MemComponent::component_t sender_mem_component, MemComponent::component_t receiver_mem_component, core_id_t requester, IntPtr address, Byte* data_buf = NULL, UInt32 data_length = 0, ShmemPerf *perf = NULL, ShmemPerfModel::Thread_t thread_num = ShmemPerfModel::NUM_CORE_THREADS);
+         void broadcastMsg(PrL1PrL2DramDirectoryMSI::ShmemMsg::msg_t msg_type, MemComponent::component_t sender_mem_component, MemComponent::component_t receiver_mem_component, core_id_t requester, IntPtr address, Byte* data_buf = nullptr, UInt32 data_length = 0, ShmemPerf *perf = nullptr, ShmemPerfModel::Thread_t thread_num = ShmemPerfModel::NUM_CORE_THREADS) override;
 
-         SubsecondTime getL1HitLatency(void) { return m_cache_perf_models[MemComponent::L1_ICACHE]->getLatency(CachePerfModel::ACCESS_CACHE_DATA_AND_TAGS); }
-         void addL1Hits(bool icache, Core::mem_op_t mem_op_type, UInt64 hits) {
+         [[nodiscard]] SubsecondTime getL1HitLatency() const override { return m_cache_perf_models[MemComponent::L1_ICACHE]->getLatency(CachePerfModel::ACCESS_CACHE_DATA_AND_TAGS); }
+         void addL1Hits(const bool icache, const Core::mem_op_t mem_op_type, const UInt64 hits) override {
             (icache ? m_cache_cntlrs[MemComponent::L1_ICACHE] : m_cache_cntlrs[MemComponent::L1_DCACHE])->updateHits(mem_op_type, hits);
          }
 
-         void enableModels();
-         void disableModels();
+         void enableModels() override;
+         void disableModels() override;
 
-         core_id_t getShmemRequester(const void* pkt_data)
+         core_id_t getShmemRequester(const void* pkt_data) const override
          { return ((PrL1PrL2DramDirectoryMSI::ShmemMsg*) pkt_data)->getRequester(); }
 
-         UInt32 getModeledLength(const void* pkt_data)
+         UInt32 getModeledLength(const void* pkt_data) const override
          { return ((PrL1PrL2DramDirectoryMSI::ShmemMsg*) pkt_data)->getModeledLength(); }
 
          SubsecondTime getCost(MemComponent::component_t mem_component, CachePerfModel::CacheAccess_t access_type);

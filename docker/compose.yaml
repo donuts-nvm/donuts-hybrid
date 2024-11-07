@@ -6,15 +6,17 @@ services:
       args:
         - UID=${UID}
         - USER=${USER}
-        - GRAPHITE_ROOT=${HOME}/donuts
-        - BENCHMARKS_ROOT=${HOME}/sniper-benchmarks
+        - GRAPHITE_ROOT=${GRAPHITE_ROOT}
     image: ubuntu-sniper
     ports:
       - "2222:22"
     user: "${UID}:${GID:-100}"
     volumes:
       - "${HOME}:${HOME}"
-    command: [ "sh", "-c", "sudo service ssh start && tail -f /dev/null" ]
+    environment:
+      - GRAPHITE_ROOT=${GRAPHITE_ROOT}
+      - BENCHMARKS_ROOT=${HOME}/sniper-benchmarks
+    command: ["sh", "-c", "sudo service ssh start && tail -f /dev/null"]
 secrets:
   user_ssh_key:
     file: ~/.ssh/id_ed25519

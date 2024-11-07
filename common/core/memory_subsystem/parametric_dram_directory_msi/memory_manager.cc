@@ -34,12 +34,12 @@ std::map<CoreComponentType, CacheCntlr*> MemoryManager::m_all_cache_cntlrs;
 MemoryManager::MemoryManager(Core* core,
       Network* network, ShmemPerfModel* shmem_perf_model):
    MemoryManagerBase(core, network, shmem_perf_model),
-   m_nuca_cache(NULL),
-   m_dram_cache(NULL),
-   m_dram_directory_cntlr(NULL),
-   m_dram_cntlr(NULL),
-   m_itlb(NULL), m_dtlb(NULL), m_stlb(NULL),
-   m_tlb_miss_penalty(NULL,0),
+   m_nuca_cache(nullptr),
+   m_dram_cache(nullptr),
+   m_dram_directory_cntlr(nullptr),
+   m_dram_cntlr(nullptr),
+   m_itlb(nullptr), m_dtlb(nullptr), m_stlb(nullptr),
+   m_tlb_miss_penalty(nullptr,0),
    m_tlb_miss_parallel(false),
    m_tag_directory_present(false),
    m_dram_cntlr_present(false),
@@ -72,7 +72,7 @@ MemoryManager::MemoryManager(Core* core,
 
       UInt32 stlb_size = Sim()->getCfg()->getInt("perf_model/stlb/size");
       if (stlb_size)
-         m_stlb = new TLB("stlb", "perf_model/stlb", getCore()->getId(), stlb_size, Sim()->getCfg()->getInt("perf_model/stlb/associativity"), NULL);
+         m_stlb = new TLB("stlb", "perf_model/stlb", getCore()->getId(), stlb_size, Sim()->getCfg()->getInt("perf_model/stlb/associativity"), nullptr);
       UInt32 itlb_size = Sim()->getCfg()->getInt("perf_model/itlb/size");
       if (itlb_size)
          m_itlb = new TLB("itlb", "perf_model/itlb", getCore()->getId(), itlb_size, Sim()->getCfg()->getInt("perf_model/itlb/associativity"), m_stlb);
@@ -103,7 +103,7 @@ MemoryManager::MemoryManager(Core* core,
                break;
          }
 
-         const ComponentPeriod *clock_domain = NULL;
+         const ComponentPeriod *clock_domain = nullptr;
          String domain_name = Sim()->getCfg()->getStringArray("perf_model/" + configName + "/dvfs_domain", core->getId());
          if (domain_name == "core")
             clock_domain = core->getDvfsDomain();
@@ -123,9 +123,7 @@ MemoryManager::MemoryManager(Core* core,
             Sim()->getCfg()->getStringArray("perf_model/" + configName + "/address_hash", core->getId()),
             Sim()->getCfg()->getStringArray("perf_model/" + configName + "/replacement_policy", core->getId()),
             Sim()->getCfg()->getBoolArray(  "perf_model/" + configName + "/perfect", core->getId()),
-            i == MemComponent::L1_ICACHE
-               ? Sim()->getCfg()->getBoolArray(  "perf_model/" + configName + "/coherent", core->getId())
-               : true,
+               i != MemComponent::L1_ICACHE || Sim()->getCfg()->getBoolArray("perf_model/" + configName + "/coherent", core->getId()),
             ComponentLatency(clock_domain, Sim()->getCfg()->getIntArray("perf_model/" + configName + "/data_access_time", core->getId())),
             ComponentLatency(clock_domain, Sim()->getCfg()->getIntArray("perf_model/" + configName + "/tags_access_time", core->getId())),
             ComponentLatency(clock_domain, Sim()->getCfg()->getIntArray("perf_model/" + configName + "/writeback_time", core->getId())),
@@ -276,7 +274,8 @@ MemoryManager::MemoryManager(Core* core,
    }
 
    for(UInt32 i = MemComponent::FIRST_LEVEL_CACHE; i <= (UInt32)m_last_level_cache; ++i) {
-      CacheCntlr* cache_cntlr = new CacheCntlr(
+      // Modified by Kleber Kruger (original implementation: CacheCntlr* cache_cntlr = new CacheCntlr)
+      CacheCntlr* cache_cntlr = CacheCntlr::create(
          (MemComponent::component_t)i,
          cache_names[(MemComponent::component_t)i],
          getCore()->getId(),
@@ -362,7 +361,7 @@ MemoryManager::MemoryManager(Core* core,
       if (dram_direct_access && getCore()->getId() < (core_id_t)Sim()->getConfig()->getApplicationCores())
       {
          LOG_ASSERT_ERROR(Sim()->getConfig()->getApplicationCores() <= cache_parameters[m_last_level_cache].shared_cores, "DRAM direct access is only possible when there is just a single last-level cache (LLC level %d shared by %d, num cores %d)", m_last_level_cache, cache_parameters[m_last_level_cache].shared_cores, Sim()->getConfig()->getApplicationCores());
-         LOG_ASSERT_ERROR(m_dram_cntlr != NULL, "I'm supposed to have direct access to a DRAM controller, but there isn't one at this node");
+         LOG_ASSERT_ERROR(m_dram_cntlr != nullptr, "I'm supposed to have direct access to a DRAM controller, but there isn't one at this node");
          m_cache_cntlrs[(UInt32)m_last_level_cache]->setDRAMDirectAccess(
             m_dram_cache ? (DramCntlrInterface*)m_dram_cache : (DramCntlrInterface*)m_dram_cntlr,
             Sim()->getCfg()->getInt("perf_model/llc/evict_buffers"));
@@ -384,14 +383,14 @@ MemoryManager::~MemoryManager()
 
    // Delete the Models
 
-   if (m_itlb) delete m_itlb;
-   if (m_dtlb) delete m_dtlb;
-   if (m_stlb) delete m_stlb;
+   delete m_itlb;
+   delete m_dtlb;
+   delete m_stlb;
 
    for(i = MemComponent::FIRST_LEVEL_CACHE; i <= (UInt32)m_last_level_cache; ++i)
    {
       delete m_cache_perf_models[(MemComponent::component_t)i];
-      m_cache_perf_models[(MemComponent::component_t)i] = NULL;
+      m_cache_perf_models[(MemComponent::component_t)i] = nullptr;
    }
 
    delete m_user_thread_sem;
@@ -402,27 +401,24 @@ MemoryManager::~MemoryManager()
    for(i = MemComponent::FIRST_LEVEL_CACHE; i <= (UInt32)m_last_level_cache; ++i)
    {
       delete m_cache_cntlrs[(MemComponent::component_t)i];
-      m_cache_cntlrs[(MemComponent::component_t)i] = NULL;
+      m_cache_cntlrs[(MemComponent::component_t)i] = nullptr;
    }
 
-   if (m_nuca_cache)
-      delete m_nuca_cache;
-   if (m_dram_cache)
-      delete m_dram_cache;
-   if (m_dram_cntlr)
-      delete m_dram_cntlr;
-   if (m_dram_directory_cntlr)
-      delete m_dram_directory_cntlr;
+   delete m_nuca_cache;
+   delete m_dram_cache;
+   delete m_dram_cntlr;
+   delete m_dram_directory_cntlr;
 }
 
 HitWhere::where_t
 MemoryManager::coreInitiateMemoryAccess(
-      MemComponent::component_t mem_component,
-      Core::lock_signal_t lock_signal,
-      Core::mem_op_t mem_op_type,
-      IntPtr address, UInt32 offset,
-      Byte* data_buf, UInt32 data_length,
-      Core::MemModeled modeled)
+      const MemComponent::component_t mem_component,
+      const Core::lock_signal_t lock_signal,
+      const Core::mem_op_t mem_op_type,
+      const IntPtr address, const UInt32 offset,
+      Byte* data_buf, const UInt32 data_length,
+      const Core::MemModeled modeled,
+      const IntPtr eip) // Added by Kleber Kruger
 {
    LOG_ASSERT_ERROR(mem_component <= m_last_level_cache,
       "Error: invalid mem_component (%d) for coreInitiateMemoryAccess", mem_component);
@@ -438,7 +434,8 @@ MemoryManager::coreInitiateMemoryAccess(
          address, offset,
          data_buf, data_length,
          modeled == Core::MEM_MODELED_NONE || modeled == Core::MEM_MODELED_COUNT ? false : true,
-         modeled == Core::MEM_MODELED_NONE ? false : true);
+         modeled == Core::MEM_MODELED_NONE ? false : true,
+         eip); // Modified by Kleber Kruger | added arg: eip
 }
 
 void
@@ -540,7 +537,7 @@ void
 MemoryManager::sendMsg(PrL1PrL2DramDirectoryMSI::ShmemMsg::msg_t msg_type, MemComponent::component_t sender_mem_component, MemComponent::component_t receiver_mem_component, core_id_t requester, core_id_t receiver, IntPtr address, Byte* data_buf, UInt32 data_length, HitWhere::where_t where, ShmemPerf *perf, ShmemPerfModel::Thread_t thread_num)
 {
 MYLOG("send msg %u %ul%u > %ul%u", msg_type, requester, sender_mem_component, receiver, receiver_mem_component);
-   assert((data_buf == NULL) == (data_length == 0));
+   assert((data_buf == nullptr) == (data_length == 0));
    PrL1PrL2DramDirectoryMSI::ShmemMsg shmem_msg(msg_type, sender_mem_component, receiver_mem_component, requester, address, data_buf, data_length, perf);
    shmem_msg.setWhere(where);
 
@@ -566,7 +563,7 @@ void
 MemoryManager::broadcastMsg(PrL1PrL2DramDirectoryMSI::ShmemMsg::msg_t msg_type, MemComponent::component_t sender_mem_component, MemComponent::component_t receiver_mem_component, core_id_t requester, IntPtr address, Byte* data_buf, UInt32 data_length, ShmemPerf *perf, ShmemPerfModel::Thread_t thread_num)
 {
 MYLOG("bcast msg");
-   assert((data_buf == NULL) == (data_length == 0));
+   assert((data_buf == nullptr) == (data_length == 0));
    PrL1PrL2DramDirectoryMSI::ShmemMsg shmem_msg(msg_type, sender_mem_component, receiver_mem_component, requester, address, data_buf, data_length, perf);
 
    Byte* msg_buf = shmem_msg.makeMsgBuf();

@@ -26,6 +26,6 @@ run:
 
 # Added by Kleber Kruger running docker container in the LSC
 run-lsc:
-	UID=$(shell id -u) GID=$(shell id -g) docker-compose build && UID=$(shell id -u) GID=$(shell id -g) docker-compose up -d
+	UID=$(shell id -u) GID=$(shell id -g) GRAPHITE_ROOT=$(shell dirname $(PWD)) docker-compose up -d --build
 
 .PHONY: all build-all run-root run-lsc run
